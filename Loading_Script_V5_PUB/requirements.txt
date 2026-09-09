@@ -1,0 +1,80 @@
+# Phoenix Multi-Scanner Import Tool - Python Requirements
+# =======================================================
+# 
+# This file lists all Python package dependencies required to run the
+# Phoenix Multi-Scanner Import Tool with full support for:
+# - 200+ security scanners via YAML mappings
+# - Multi-format parsing (JSON, XML, CSV)
+# - Enhanced batching and retry logic
+# - Data validation and fixing
+#
+# Installation:
+#   pip install -r requirements.txt
+#
+# Python Version Required: 3.8+
+
+# ═══════════════════════════════════════════════════════════════════════
+# CORE DEPENDENCIES (Required)
+# ═══════════════════════════════════════════════════════════════════════
+
+# HTTP Requests - For Phoenix Security API communication
+# Used by: phoenix_import_refactored.py, phoenix_import_enhanced.py
+# SECURITY: Minimum version 2.32.4 required to fix CVE-2024-47081 (.netrc credentials leak)
+requests>=2.32.4,<3.0.0
+
+# YAML Parser - For scanner configuration and field mappings
+# Used by: scanner_field_mapper.py, tag configuration, scanner mappings
+PyYAML>=6.0.1,<7.0.0
+
+# ═══════════════════════════════════════════════════════════════════════
+# RECOMMENDED DEPENDENCIES (Strongly Recommended)
+# ═══════════════════════════════════════════════════════════════════════
+
+# For better colored terminal output and logging
+# Used by: All CLI tools for better UX
+colorama>=0.4.6,<1.0.0
+
+# For improved date/time handling and parsing
+# Used by: Date normalization across different scanner formats
+python-dateutil>=2.8.2,<3.0.0
+
+# ═══════════════════════════════════════════════════════════════════════
+# BUILT-IN LIBRARIES (No Installation Required)
+# ═══════════════════════════════════════════════════════════════════════
+# The following are used but come with Python:
+# - xml.etree.ElementTree (XML parsing)
+# - csv (CSV file handling)
+# - json (JSON parsing)
+# - zipfile, gzip, tarfile (Archive extraction)
+# - pathlib, os, sys (File system operations)
+# - dataclasses, typing, abc (Type hints and abstractions)
+# - logging, traceback (Logging and debugging)
+# - re, hashlib, uuid (Utilities)
+# - time, datetime (Time operations)
+# - argparse, configparser (Configuration and CLI)
+
+# Development Dependencies (Optional)
+# ------------------------------------
+# Uncomment these if you're developing or testing the tool
+
+# pytest>=7.4.0              # Testing framework
+# pytest-cov>=4.1.0          # Test coverage
+# black>=23.7.0              # Code formatting
+# flake8>=6.1.0              # Linting
+# mypy>=1.5.0                # Type checking
+# ipython>=8.14.0            # Interactive Python shell for debugging
+
+# Security Dependencies (Optional but Recommended)
+# ------------------------------------------------
+# Uncomment these for enhanced security scanning capabilities
+
+# cryptography>=41.0.0       # For secure connections
+# certifi>=2023.7.22         # CA certificates for SSL/TLS
+
+# Documentation Dependencies (Optional)
+# --------------------------------------
+# Uncomment if you're generating documentation
+
+# mkdocs>=1.5.0              # Documentation generator
+# mkdocs-material>=9.2.0     # Material theme for docs
+

@@ -1,0 +1,84 @@
+pipeline {
+    agent any
+
+    parameters {
+        string(name: 'SCAN_FILE', defaultValue: 'scan-results.json', description: 'Scanner output file path')
+        string(name: 'SCANNER_TYPE', defaultValue: 'auto', description: 'Scanner type or auto')
+    }
+
+    environment {
+        PHOENIX_CLIENT_ID = credentials('phoenix-client-id')
+        PHOENIX_CLIENT_SECRET = credentials('phoenix-client-secret')
+        PHOENIX_API_BASE_URL = credentials('phoenix-api-base-url')
+    }
+
+    stages {
+        stage('Install Dependencies') {
+            steps {
+                sh '''
+                    cd Loading_Script_V5
+                    python3 -m pip install --user -r requirements.txt
+                '''
+            }
+        }
+
+        stage('Direct Upload to Phoenix (Minimal)') {
+            steps {
+                sh '''
+                    cd Loading_Script_V5
+                    python3 phoenix_multi_scanner_enhanced.py \
+                        --file "${SCAN_FILE}" \
+                        --scanner "${SCANNER_TYPE}" \
+                        --import-type delta \
+                        --assessment "jenkins-${JOB_NAME}-${BUILD_NUMBER}" \
+                        --tag-file simple-upload-actions/pipeline-tags.template.yaml \
+                        --fix-data \
+                        --enable-batching \
+                        --verify-import
+                '''
+            }
+        }
+    }
+}
+pipeline {
+    agent any
+
+    parameters {
+        string(name: 'SCAN_FILE', defaultValue: 'scan-results.json', description: 'Scanner output file path')
+        string(name: 'SCANNER_TYPE', defaultValue: 'auto', description: 'Scanner type or auto')
+    }
+
+    environment {
+        PHOENIX_CLIENT_ID = credentials('phoenix-client-id')
+        PHOENIX_CLIENT_SECRET = credentials('phoenix-client-secret')
+        PHOENIX_API_BASE_URL = credentials('phoenix-api-base-url')
+    }
+
+    stages {
+        stage('Install Dependencies') {
+            steps {
+                sh '''
+                    cd Loading_Script_V5
+                    python3 -m pip install --user -r requirements.txt
+                '''
+            }
+        }
+
+        stage('Direct Upload to Phoenix (Minimal)') {
+            steps {
+                sh '''
+                    cd Loading_Script_V5
+                    python3 phoenix_multi_scanner_enhanced.py \
+                        --file "${SCAN_FILE}" \
+                        --scanner "${SCANNER_TYPE}" \
+                        --import-type delta \
+                        --assessment "jenkins-${JOB_NAME}-${BUILD_NUMBER}" \
+                        --tag-file simple-upload-actions/pipeline-tags.template.yaml \
+                        --fix-data \
+                        --enable-batching \
+                        --verify-import
+                '''
+            }
+        }
+    }
+}

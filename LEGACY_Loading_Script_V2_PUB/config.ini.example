@@ -1,0 +1,20 @@
+[phoenix]
+# Phoenix API Configuration
+# Replace with your actual Phoenix API URL and credentials
+api_url = https://api.poc1.appsecphx.io
+client_id = YOUR_CLIENT_ID_HERE
+client_secret = YOUR_CLIENT_SECRET_HERE
+
+[scan_files]
+# Path to scanner result files (relative to script directory)
+# Update these paths to match your scanner output files
+aqua_file = scanner-sample/aqua_example2.json
+snyk_file = scanner-sample/snyk_example.json
+trivy_file = scanner-sample/trivy_mix.json
+
+[scan_settings]
+# Default import settings
+# import_type: 'new' or 'update'
+# auto_import: true or false
+import_type = new
+auto_import = true

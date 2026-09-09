@@ -1,0 +1,180 @@
+[phoenix]
+# Phoenix Security API Configuration - Multi-Scanner Version
+# Copy this file to config.ini and fill in your actual values
+
+# Your Phoenix client ID
+client_id = ******* #change this to your client id
+
+# Your Phoenix client secret (Personal Access Token)
+client_secret = ******* #change this to your client secret
+
+# Phoenix API base URL (choose one) #change to your environment
+# For demo environment:
+api_base_url = https://api.demo.appsecphx.io
+# For poc1 environment:
+# api_base_url = https://api.poc1.appsecphx.io
+# For production environment:
+# api_base_url = https://api.appsecphx.io
+# For YOURDOMAIN production environment:
+# api_base_url = https://api.YOURDOMAIN.securityphoenix.cloud
+# For SAAS production environment:
+# api_base_url = https://api.securityphoenix.cloud
+
+
+
+# Default import type: new, merge, or delta
+import_type = new
+
+# Default assessment name (if not specified, will be auto-generated)
+assessment_name = 
+
+# Auto import after file processing (true/false)
+auto_import = true
+
+# Wait for import completion (true/false)
+wait_for_completion = true
+
+# Delay between batch processing (seconds)
+batch_delay = 10
+
+# Timeout for import completion (seconds)
+timeout = 3600
+
+# Check interval for import status (seconds)
+check_interval = 10
+
+# Tag configuration
+# Set to true to apply tags after import completion
+apply_tags_after_import = false
+
+[scanner_aqua]
+# Aqua Security Scanner Configuration
+scanner_type = Aqua Scan
+asset_type = CONTAINER
+severity_mapping_critical = 10.0
+severity_mapping_high = 8.0
+severity_mapping_medium = 5.0
+severity_mapping_low = 2.0
+severity_mapping_negligible = 1.0
+# Filter out informational vulnerabilities
+vulnerability_filters = info,informational,negligible
+
+[scanner_jfrog]
+# JFrog Xray Scanner Configuration
+scanner_type = JFrog Xray Scan
+asset_type = BUILD
+severity_mapping_critical = 10.0
+severity_mapping_high = 8.0
+severity_mapping_medium = 5.0
+severity_mapping_low = 2.0
+severity_mapping_minor = 1.0
+# Custom field mappings for JFrog
+field_mapping_component_id = repository
+field_mapping_pkg_type = package_type
+
+[scanner_qualys]
+# Qualys Scanner Configuration
+scanner_type = Qualys Scan
+asset_type = INFRA
+severity_mapping_5 = 10.0
+severity_mapping_4 = 8.0
+severity_mapping_3 = 5.0
+severity_mapping_2 = 2.0
+severity_mapping_1 = 1.0
+# Qualys uses numeric severity (1-5)
+severity_mapping_critical = 10.0
+severity_mapping_high = 8.0
+severity_mapping_medium = 5.0
+severity_mapping_low = 2.0
+severity_mapping_info = 1.0
+
+[scanner_sonarqube]
+# SonarQube Scanner Configuration
+scanner_type = SonarQube Scan
+asset_type = CODE
+severity_mapping_blocker = 10.0
+severity_mapping_critical = 9.0
+severity_mapping_major = 6.0
+severity_mapping_minor = 3.0
+severity_mapping_info = 1.0
+
+[scanner_tenable]
+# Tenable/Nessus Scanner Configuration
+scanner_type = Tenable Scan
+asset_type = INFRA
+severity_mapping_critical = 10.0
+severity_mapping_high = 8.0
+severity_mapping_medium = 5.0
+severity_mapping_low = 2.0
+severity_mapping_none = 1.0
+# Filter out informational findings
+vulnerability_filters = none,info,informational
+
+[scanner_generic]
+# Generic Scanner Configuration (fallback)
+scanner_type = Generic Scan
+asset_type = INFRA
+severity_mapping_critical = 10.0
+severity_mapping_high = 8.0
+severity_mapping_medium = 5.0
+severity_mapping_low = 2.0
+severity_mapping_info = 1.0
+
+[logging]
+# Logging configuration
+level = INFO
+file = phoenix_multi_scanner_import.log
+max_size = 10MB
+backup_count = 5
+
+[anonymization]
+# Anonymization settings
+# Seed for reproducible anonymization (optional)
+# seed = 12345
+
+# Preserve domain structure in hostnames (true/false)
+preserve_domain_structure = true
+
+# Use consistent IP ranges for anonymization (true/false)
+consistent_ip_ranges = true
+
+# Fields to anonymize (comma-separated)
+ip_fields = IP Address,ip,ip_address,host_ip,target_ip,source_ip
+hostname_fields = DNS Name,hostname,host_name,dns_name,fqdn,NetBIOS Name
+
+[batch_processing]
+# Batch processing configuration
+# Maximum number of files to process in parallel
+max_parallel_files = 5
+
+# Maximum file size to process (in MB)
+max_file_size = 100
+
+# Skip files larger than max_file_size (true/false)
+skip_large_files = true
+
+# Retry failed imports (number of retries)
+retry_count = 3
+
+# Delay between retries (seconds)
+retry_delay = 30
+
+[validation]
+# Data validation settings
+# Validate asset attributes before import (true/false)
+validate_assets = true
+
+# Validate vulnerability data before import (true/false)
+validate_vulnerabilities = true
+
+# Minimum required fields for assets
+required_asset_fields = asset_type,attributes
+
+# Minimum required fields for vulnerabilities
+required_vulnerability_fields = name,severity
+
+# Maximum description length (characters)
+max_description_length = 5000
+
+# Maximum remedy length (characters)
+max_remedy_length = 2000

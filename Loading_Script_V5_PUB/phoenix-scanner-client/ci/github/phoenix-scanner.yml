@@ -1,0 +1,73 @@
+# GitHub Actions Workflow for Phoenix Scanner Upload
+# Place this file in .github/workflows/phoenix-scanner.yml
+
+name: Phoenix Scanner Upload
+
+on:
+  workflow_dispatch:
+    inputs:
+      scanner_file:
+        description: 'Path to scanner output file'
+        required: true
+      scanner_type:
+        description: 'Scanner type'
+        required: false
+        default: 'auto'
+  
+  # Trigger on scan completion (example)
+  workflow_run:
+    workflows: ["Security Scan"]
+    types:
+      - completed
+
+env:
+  PHOENIX_SCANNER_API_URL: ${{ secrets.PHOENIX_SCANNER_API_URL }}
+  PHOENIX_SCANNER_API_KEY: ${{ secrets.PHOENIX_SCANNER_API_KEY }}
+  PHOENIX_CLIENT_ID: ${{ secrets.PHOENIX_CLIENT_ID }}
+  PHOENIX_CLIENT_SECRET: ${{ secrets.PHOENIX_CLIENT_SECRET }}
+  PHOENIX_API_URL: ${{ secrets.PHOENIX_API_URL }}
+
+jobs:
+  upload-scan:
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+      
+      - name: Setup Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.11'
+      
+      - name: Install Phoenix Scanner Client
+        run: |
+          pip install -r requirements.txt
+        working-directory: phoenix-scanner-client
+      
+      - name: Upload scan results
+        run: |
+          python actions/upload_single.py \
+            --file "${{ github.event.inputs.scanner_file || 'scan-results.json' }}" \
+            --scanner-type "${{ github.event.inputs.scanner_type || 'auto' }}" \
+            --assessment "${{ github.repository }}-${{ github.run_number }}" \
+            --wait \
+            --report upload-report.txt \
+            --verbose
+        working-directory: phoenix-scanner-client
+      
+      - name: Upload report
+        if: always()
+        uses: actions/upload-artifact@v3
+        with:
+          name: phoenix-scanner-report
+          path: phoenix-scanner-client/upload-report.txt
+      
+      - name: Check results
+        if: failure()
+        run: |
+          echo "::error::Phoenix Scanner upload failed"
+          exit 1
+
+
+

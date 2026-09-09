@@ -1,0 +1,329 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Transform: AWS::Serverless-2016-10-31
+Description: >
+  Phoenix Security Lambda Scanner Import
+  
+  Serverless vulnerability import from S3 to Phoenix Security.
+  Supports 205+ scanner types with automatic detection.
+
+# =============================================================================
+# PARAMETERS
+# =============================================================================
+Parameters:
+  Environment:
+    Type: String
+    Default: prod
+    AllowedValues:
+      - dev
+      - staging
+      - prod
+    Description: Deployment environment
+
+  S3BucketName:
+    Type: String
+    Default: phoenix-scanner-data
+    Description: S3 bucket for scanner files and configuration
+
+  PhoenixApiUrl:
+    Type: String
+    Default: https://api.appsecphx.io
+    Description: Phoenix Security API URL
+
+  PhoenixClientId:
+    Type: String
+    NoEcho: true
+    Description: Phoenix API Client ID (stored in Secrets Manager recommended)
+
+  PhoenixClientSecret:
+    Type: String
+    NoEcho: true
+    Description: Phoenix API Client Secret (stored in Secrets Manager recommended)
+
+  LogLevel:
+    Type: String
+    Default: INFO
+    AllowedValues:
+      - DEBUG
+      - INFO
+      - WARNING
+      - ERROR
+    Description: Lambda log level
+
+  MaxConcurrentLambdas:
+    Type: Number
+    Default: 10
+    MinValue: 1
+    MaxValue: 100
+    Description: Maximum concurrent file processor Lambdas
+
+# =============================================================================
+# GLOBALS
+# =============================================================================
+Globals:
+  Function:
+    Timeout: 300
+    MemorySize: 1024
+    Runtime: python3.11
+    Architectures:
+      - x86_64
+    Environment:
+      Variables:
+        LOG_LEVEL: !Ref LogLevel
+        S3_BUCKET: !Ref S3BucketName
+        PHOENIX_API_URL: !Ref PhoenixApiUrl
+        PHOENIX_CLIENT_ID: !Ref PhoenixClientId
+        PHOENIX_CLIENT_SECRET: !Ref PhoenixClientSecret
+
+# =============================================================================
+# RESOURCES
+# =============================================================================
+Resources:
+
+  # ---------------------------------------------------------------------------
+  # S3 Bucket for Scanner Data
+  # ---------------------------------------------------------------------------
+  ScannerDataBucket:
+    Type: AWS::S3::Bucket
+    Properties:
+      BucketName: !Sub "${S3BucketName}-${Environment}"
+      BucketEncryption:
+        ServerSideEncryptionConfiguration:
+          - ServerSideEncryptionByDefault:
+              SSEAlgorithm: AES256
+      PublicAccessBlockConfiguration:
+        BlockPublicAcls: true
+        BlockPublicPolicy: true
+        IgnorePublicAcls: true
+        RestrictPublicBuckets: true
+      VersioningConfiguration:
+        Status: Enabled
+      LifecycleConfiguration:
+        Rules:
+          - Id: CleanupProcessedFiles
+            Status: Enabled
+            Prefix: scanners/
+            ExpirationInDays: 90
+            NoncurrentVersionExpirationInDays: 30
+      NotificationConfiguration:
+        LambdaConfigurations:
+          - Event: s3:ObjectCreated:*
+            Filter:
+              S3Key:
+                Rules:
+                  - Name: prefix
+                    Value: scanners/
+                  - Name: suffix
+                    Value: /new/
+            Function: !GetAtt FileProcessorFunction.Arn
+      Tags:
+        - Key: Environment
+          Value: !Ref Environment
+        - Key: Application
+          Value: phoenix-scanner-import
+
+  # ---------------------------------------------------------------------------
+  # Lambda Layer with Dependencies
+  # ---------------------------------------------------------------------------
+  PhoenixDependenciesLayer:
+    Type: AWS::Serverless::LayerVersion
+    Properties:
+      LayerName: !Sub "phoenix-scanner-deps-${Environment}"
+      Description: Dependencies for Phoenix Scanner Import (requests, pyyaml, boto3)
+      ContentUri: ../../
+      CompatibleRuntimes:
+        - python3.11
+        - python3.10
+        - python3.9
+      RetentionPolicy: Retain
+    Metadata:
+      BuildMethod: python3.11
+
+  # ---------------------------------------------------------------------------
+  # File Processor Lambda (Single File Mode)
+  # ---------------------------------------------------------------------------
+  FileProcessorFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      FunctionName: !Sub "phoenix-file-processor-${Environment}"
+      Description: Process single scanner file from S3 and import to Phoenix
+      CodeUri: ../../
+      Handler: lambda.phoenix_lambda_handler.lambda_handler
+      Timeout: 300
+      MemorySize: 1024
+      ReservedConcurrentExecutions: !Ref MaxConcurrentLambdas
+      Layers:
+        - !Ref PhoenixDependenciesLayer
+      Policies:
+        - S3ReadPolicy:
+            BucketName: !Sub "${S3BucketName}-${Environment}"
+        - S3WritePolicy:
+            BucketName: !Sub "${S3BucketName}-${Environment}"
+        - Version: '2012-10-17'
+          Statement:
+            - Effect: Allow
+              Action:
+                - s3:DeleteObject
+              Resource: !Sub "arn:aws:s3:::${S3BucketName}-${Environment}/*"
+      Events:
+        S3NewFile:
+          Type: S3
+          Properties:
+            Bucket: !Ref ScannerDataBucket
+            Events: s3:ObjectCreated:*
+            Filter:
+              S3Key:
+                Rules:
+                  - Name: prefix
+                    Value: scanners/
+      Tags:
+        Environment: !Ref Environment
+        Application: phoenix-scanner-import
+
+  # ---------------------------------------------------------------------------
+  # Orchestrator Lambda (Multi-File Mode)
+  # ---------------------------------------------------------------------------
+  OrchestratorFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      FunctionName: !Sub "phoenix-orchestrator-${Environment}"
+      Description: Scan all new/ folders and invoke file processor Lambdas
+      CodeUri: ../../
+      Handler: lambda.phoenix_lambda_handler.lambda_handler
+      Timeout: 900
+      MemorySize: 512
+      Layers:
+        - !Ref PhoenixDependenciesLayer
+      Environment:
+        Variables:
+          FILE_PROCESSOR_FUNCTION: !Ref FileProcessorFunction
+      Policies:
+        - S3ReadPolicy:
+            BucketName: !Sub "${S3BucketName}-${Environment}"
+        - LambdaInvokePolicy:
+            FunctionName: !Ref FileProcessorFunction
+      Events:
+        ScheduledScan:
+          Type: Schedule
+          Properties:
+            Schedule: rate(15 minutes)
+            Description: Scan for new files every 15 minutes
+            Enabled: true
+            Input: !Sub |
+              {
+                "mode": "orchestrator",
+                "bucket": "${S3BucketName}-${Environment}",
+                "config_key": "config/lambda_config.ini"
+              }
+      Tags:
+        Environment: !Ref Environment
+        Application: phoenix-scanner-import
+
+  # ---------------------------------------------------------------------------
+  # S3 Bucket Permission for Lambda
+  # ---------------------------------------------------------------------------
+  S3InvokeLambdaPermission:
+    Type: AWS::Lambda::Permission
+    Properties:
+      FunctionName: !Ref FileProcessorFunction
+      Action: lambda:InvokeFunction
+      Principal: s3.amazonaws.com
+      SourceArn: !GetAtt ScannerDataBucket.Arn
+      SourceAccount: !Ref AWS::AccountId
+
+  # ---------------------------------------------------------------------------
+  # CloudWatch Log Groups
+  # ---------------------------------------------------------------------------
+  FileProcessorLogGroup:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      LogGroupName: !Sub "/aws/lambda/phoenix-file-processor-${Environment}"
+      RetentionInDays: 30
+
+  OrchestratorLogGroup:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      LogGroupName: !Sub "/aws/lambda/phoenix-orchestrator-${Environment}"
+      RetentionInDays: 30
+
+  # ---------------------------------------------------------------------------
+  # CloudWatch Alarms
+  # ---------------------------------------------------------------------------
+  FileProcessorErrorAlarm:
+    Type: AWS::CloudWatch::Alarm
+    Properties:
+      AlarmName: !Sub "phoenix-file-processor-errors-${Environment}"
+      AlarmDescription: Alert when file processor Lambda has errors
+      MetricName: Errors
+      Namespace: AWS/Lambda
+      Statistic: Sum
+      Period: 300
+      EvaluationPeriods: 1
+      Threshold: 5
+      ComparisonOperator: GreaterThanThreshold
+      Dimensions:
+        - Name: FunctionName
+          Value: !Ref FileProcessorFunction
+
+  # ---------------------------------------------------------------------------
+  # IAM Role for Manual Invocation (Optional)
+  # ---------------------------------------------------------------------------
+  ManualInvokeRole:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: !Sub "phoenix-scanner-invoke-${Environment}"
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: lambda.amazonaws.com
+            Action: sts:AssumeRole
+      Policies:
+        - PolicyName: InvokeLambda
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                Action:
+                  - lambda:InvokeFunction
+                Resource:
+                  - !GetAtt FileProcessorFunction.Arn
+                  - !GetAtt OrchestratorFunction.Arn
+
+# =============================================================================
+# OUTPUTS
+# =============================================================================
+Outputs:
+  S3BucketName:
+    Description: S3 bucket for scanner data
+    Value: !Ref ScannerDataBucket
+    Export:
+      Name: !Sub "${AWS::StackName}-S3Bucket"
+
+  FileProcessorFunctionArn:
+    Description: File Processor Lambda ARN
+    Value: !GetAtt FileProcessorFunction.Arn
+    Export:
+      Name: !Sub "${AWS::StackName}-FileProcessorArn"
+
+  OrchestratorFunctionArn:
+    Description: Orchestrator Lambda ARN
+    Value: !GetAtt OrchestratorFunction.Arn
+    Export:
+      Name: !Sub "${AWS::StackName}-OrchestratorArn"
+
+  S3UploadPath:
+    Description: Path to upload scanner files
+    Value: !Sub "s3://${ScannerDataBucket}/scanners/{scanner_name}/new/"
+
+  ConfigPath:
+    Description: Path for configuration file
+    Value: !Sub "s3://${ScannerDataBucket}/config/lambda_config.ini"
+
+  UsageInstructions:
+    Description: How to use the deployed Lambda
+    Value: |
+      1. Upload config: aws s3 cp lambda_config.ini s3://BUCKET/config/
+      2. Upload scan: aws s3 cp scan.json s3://BUCKET/scanners/trivy/new/
+      3. File is auto-processed and moved to processed/ folder
+      4. Check CloudWatch Logs for results

@@ -1,0 +1,40 @@
+# Byte-compiled / cache
+__pycache__/
+*.py[cod]
+*.so
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+
+# Virtual environments
+.venv/
+venv/
+env/
+
+# OS noise
+.DS_Store
+Thumbs.db
+
+# Runtime output — never publish
+logs/
+errors/
+debug/
+*.log
+
+# Secrets — never publish. Ship *.TEMPLATE / *.example instead.
+.env
+.env.*
+config.ini
+config_local.ini
+config_multi_scanner.local.ini
+*.pem
+*.key
+credentials.json
+
+# Editor
+.idea/
+.vscode/
+*.swp
+
+# Publish tooling scratch
+*.tmp

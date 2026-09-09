@@ -1,0 +1,19 @@
+custom_data:
+  - key: ci_provider
+    value: generic_ci
+  - key: ci_repo
+    value: your-org/your-repo
+  - key: ci_branch
+    value: main
+  - key: ci_commit
+    value: abcdef1234567890
+  - key: ci_run_id
+    value: "12345"
+  - key: ci_job
+    value: security-scan
+  - key: ci_actor
+    value: ci-bot
+  - key: ci_workflow
+    value: direct-upload
+  - key: ci_pipeline_url
+    value: https://example.com/pipeline/12345

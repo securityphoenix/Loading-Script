@@ -1,0 +1,47 @@
+# Phoenix Scanner Batch Configuration Example
+# Define multiple batches of files to upload
+
+batches:
+  - name: "Container Scans - Development"
+    scanner_type: trivy
+    asset_type: CONTAINER
+    import_type: new
+    files:
+      - scans/dev/trivy-frontend.json
+      - scans/dev/trivy-backend.json
+      - scans/dev/trivy-database.json
+  
+  - name: "Container Scans - Production"
+    scanner_type: grype
+    asset_type: CONTAINER
+    import_type: merge
+    files:
+      - scans/prod/grype-api.json
+      - scans/prod/grype-worker.json
+  
+  - name: "Infrastructure Scans"
+    scanner_type: qualys
+    asset_type: INFRA
+    import_type: delta
+    files:
+      - scans/infra/qualys-network-scan.csv
+      - scans/infra/qualys-webapp-scan.csv
+  
+  - name: "Code Security Scans"
+    scanner_type: sonarqube
+    asset_type: CODE
+    import_type: new
+    files:
+      - scans/code/sonarqube-project1.json
+      - scans/code/sonarqube-project2.json
+  
+  - name: "Cloud Security Scans"
+    scanner_type: prowler
+    asset_type: CLOUD
+    import_type: new
+    files:
+      - scans/cloud/prowler-aws-account1.json
+      - scans/cloud/prowler-aws-account2.json
+
+
+

@@ -1,0 +1,296 @@
+[
+  {
+    "vulnerabilities": [
+      {
+        "CVSSv3": "CVSS:3.0/AV:N/AC:L/PR:N/UI:N/S:U/C:H/I:H/A:H",
+        "alternativeIds": [],
+        "creationTime": "2020-10-02T14:16:13.342479Z",
+        "cvssScore": 9.8,
+        "description": "BZ2_decompress in decompress.c in bzip2 through 1.0.6 has an out-of-bounds write when there are many selectors.\n## Remediation\nUpgrade package libbz2 to version 1.0.6-r7 or above.\n## References\n",
+        "disclosureTime": "2020-10-02T04:56:54Z",
+        "exploit": "Not Defined",
+        "fixedIn": [
+          "libbz2:1.0.6-r7"
+        ],
+        "id": "SNYK-JAVA-COMGOOGLEGUAVA-1015415",
+        "identifiers": {
+          "CVE": [
+            "CVE-2019-12900"
+          ]
+        },
+        "language": "java",
+        "modificationTime": "2020-11-05T10:11:21.061172Z",
+        "packageName": "libbz2",
+        "patches": [],
+        "proprietary": false,
+        "publicationTime": "2020-10-23T15:50:35Z",
+        "references": [
+          {
+            "title": "NVD",
+            "url": "https://web.nvd.nist.gov/view/vuln/detail?vulnId=CVE-2019-12900"
+          }
+        ],
+        "semver": {
+          "vulnerable": "libbz2:1.0.6-r7"
+        },
+        "severity": "critical",
+        "severityWithCritical": "critical",
+        "title": "CVE-2019-12900",
+        "from": [
+          "docker.example.com/example:latest"
+        ],
+        "upgradePath": [],
+        "isUpgradable": true,
+        "isPatchable": true,
+        "name": "libbz2",
+        "version": "1.0.6-r6"
+      },
+      {
+        "CVSSv3": "CVSS:3.0/AV:N/AC:L/PR:N/UI:R/S:C/C:L/I:L/A:N",
+        "alternativeIds": [],
+        "creationTime": "2020-10-02T14:16:13.342479Z",
+        "cvssScore": 6.1,
+        "description": "An issue was discovered in urllib2 in Python 2.x through 2.7.16 and urllib in Python 3.x through 3.7.3. CRLF injection is possible if the attacker controls a url parameter, as demonstrated by the first argument to urllib.request.urlopen with \r\n (specifically in the query string after a ? character) followed by an HTTP header or a Redis command.\n## Remediation\nUpgrade package python2 to version 2.7.16-r2 or above.\n## References\n",
+        "disclosureTime": "2020-10-02T04:56:54Z",
+        "exploit": "Not Defined",
+        "fixedIn": [
+          "python2:2.7.16-r2"
+        ],
+        "id": "SNYK-JAVA-COMGOOGLEGUAVA-1015415",
+        "identifiers": {
+          "CVE": [
+            "CVE-2019-9740"
+          ]
+        },
+        "language": "java",
+        "modificationTime": "2020-11-05T10:11:21.061172Z",
+        "packageName": "python2",
+        "patches": [],
+        "proprietary": false,
+        "publicationTime": "2020-10-23T15:50:35Z",
+        "references": [
+          {
+            "title": "NVD",
+            "url": "https://web.nvd.nist.gov/view/vuln/detail?vulnId=CVE-2019-9740"
+          }
+        ],
+        "semver": {
+          "vulnerable": "python2:2.7.16-r1"
+        },
+        "severity": "medium",
+        "severityWithCritical": "medium",
+        "title": "CVE-2019-9740",
+        "from": [
+          "docker.example.com/example:latest"
+        ],
+        "upgradePath": [],
+        "isUpgradable": true,
+        "isPatchable": true,
+        "name": "CVE-2019-9740",
+        "version": "2.7.16-r1"
+      },
+      {
+        "CVSSv3": "CVSS:3.0/AV:L/AC:L/PR:N/UI:R/S:U/C:N/I:N/A:H",
+        "alternativeIds": [],
+        "creationTime": "2020-10-02T14:16:13.342479Z",
+        "cvssScore": 5.5,
+        "description": "Info-ZIP UnZip 6.0 has a buffer overflow in list.c, when a ZIP archive has a crafted relationship between the compressed-size value and the uncompressed-size value, because a buffer size is 10 and is supposed to be 12.\n## Remediation\nUpgrade package unzip to version 6.0-r5 or above.\n## References\n",
+        "disclosureTime": "2020-10-02T04:56:54Z",
+        "exploit": "Not Defined",
+        "fixedIn": [
+          "unzip:6.0-r5"
+        ],
+        "id": "SNYK-JAVA-COMGOOGLEGUAVA-1015415",
+        "identifiers": {
+          "CVE": [
+            "CVE-2018-18384"
+          ]
+        },
+        "language": "java",
+        "modificationTime": "2020-11-05T10:11:21.061172Z",
+        "packageName": "unzip",
+        "patches": [],
+        "proprietary": false,
+        "publicationTime": "2020-10-23T15:50:35Z",
+        "references": [
+          {
+            "title": "NVD",
+            "url": "https://web.nvd.nist.gov/view/vuln/detail?vulnId=CVE-2018-18384"
+          }
+        ],
+        "semver": {
+          "vulnerable": "unzip:6.0-r4"
+        },
+        "severity": "medium",
+        "severityWithCritical": "medium",
+        "title": "CVE-2018-18384",
+        "from": [
+          "docker.example.com/example:latest"
+        ],
+        "upgradePath": [],
+        "isUpgradable": true,
+        "isPatchable": true,
+        "name": "CVE-2018-18384",
+        "version": "6.0-r4"
+      },
+      {
+        "CVSSv3": "CVSS:3.0/AV:N/AC:L/PR:N/UI:N/S:U/C:N/I:N/A:H",
+        "alternativeIds": [],
+        "creationTime": "2020-10-02T14:16:13.342479Z",
+        "cvssScore": 7.5,
+        "description": "Info-ZIP UnZip 6.0 mishandles the overlapping of files inside a ZIP container, leading to denial of service (resource consumption), aka a \"better zip bomb\" issue.\n## Remediation\nUpgrade package unzip to version 6.0-r5 or above.\n## References\n",
+        "disclosureTime": "2020-10-02T04:56:54Z",
+        "exploit": "Not Defined",
+        "fixedIn": [
+          "unzip:6.0-r5"
+        ],
+        "id": "SNYK-JAVA-COMGOOGLEGUAVA-1015415",
+        "identifiers": {
+          "CVE": [
+            "CVE-2019-13232"
+          ]
+        },
+        "language": "java",
+        "modificationTime": "2020-11-05T10:11:21.061172Z",
+        "packageName": "unzip",
+        "patches": [],
+        "proprietary": false,
+        "publicationTime": "2020-10-23T15:50:35Z",
+        "references": [
+          {
+            "title": "NVD",
+            "url": "https://web.nvd.nist.gov/view/vuln/detail?vulnId=CVE-2019-13232"
+          }
+        ],
+        "semver": {
+          "vulnerable": "unzip:6.0-r4"
+        },
+        "severity": "medium",
+        "severityWithCritical": "medium",
+        "title": "CVE-2019-13232",
+        "from": [
+          "docker.example.com/example:latest"
+        ],
+        "upgradePath": [],
+        "isUpgradable": true,
+        "isPatchable": true,
+        "name": "CVE-2019-13232",
+        "version": "6.0-r4"
+      },
+      {
+        "CVSSv3": "CVSS:3.0/AV:N/AC:L/PR:N/UI:N/S:U/C:N/I:N/A:H",
+        "alternativeIds": [],
+        "creationTime": "2020-10-02T14:16:13.342479Z",
+        "cvssScore": 7.2,
+        "description": "Untrusted search path vulnerability in python.exe in Python through 3.5.0 on Windows allows local users to gain privileges via a Trojan horse readline.pyd file in the current working directory.  NOTE: the vendor says \"It was determined that this is a longtime behavior of Python that cannot really be altered at this point.\"\n## Remediation\nUpgrade package python2 to version 2.7.16-r2 or above.\n## References\n",
+        "disclosureTime": "2020-10-02T04:56:54Z",
+        "exploit": "Not Defined",
+        "fixedIn": [
+          "python2:2.7.16-r2"
+        ],
+        "id": "SNYK-JAVA-COMGOOGLEGUAVA-1015415",
+        "identifiers": {
+          "CVE": [
+            "CVE-2015-5652"
+          ]
+        },
+        "language": "java",
+        "modificationTime": "2020-11-05T10:11:21.061172Z",
+        "packageName": "python2",
+        "patches": [],
+        "proprietary": false,
+        "publicationTime": "2020-10-23T15:50:35Z",
+        "references": [
+          {
+            "title": "NVD",
+            "url": "https://web.nvd.nist.gov/view/vuln/detail?vulnId=CVE-2015-5652"
+          }
+        ],
+        "semver": {
+          "vulnerable": "python2:2.7.16-r1"
+        },
+        "severity": "medium",
+        "severityWithCritical": "medium",
+        "title": "CVE-2015-5652",
+        "from": [
+          "docker.example.com/example:latest"
+        ],
+        "upgradePath": [],
+        "isUpgradable": true,
+        "isPatchable": true,
+        "name": "CVE-2015-5652",
+        "version": "2.7.16-r1"
+      },
+      {
+        "CVSSv3": "CVSS:3.0/AV:N/AC:L/PR:N/UI:N/S:U/C:N/I:N/A:H",
+        "alternativeIds": [],
+        "creationTime": "2020-10-02T14:16:13.342479Z",
+        "cvssScore": 7.2,
+        "description": "A heap buffer overflow in the TFTP receiving code allows for DoS or arbitrary code execution in libcurl versions 7.19.4 through 7.64.1.\n## Remediation\nUpgrade package libcurl to version 7.64.0-r3 or above.\n## References\n",
+        "disclosureTime": "2020-10-02T04:56:54Z",
+        "exploit": "Not Defined",
+        "fixedIn": [
+          "libcurl:7.64.0-r3"
+        ],
+        "id": "SNYK-JAVA-COMGOOGLEGUAVA-1015415",
+        "identifiers": {
+          "CVE": [
+            "CVE-2019-5436"
+          ]
+        },
+        "language": "java",
+        "modificationTime": "2020-11-05T10:11:21.061172Z",
+        "packageName": "libcurl",
+        "patches": [],
+        "proprietary": false,
+        "publicationTime": "2020-10-23T15:50:35Z",
+        "references": [
+          {
+            "title": "NVD",
+            "url": "https://web.nvd.nist.gov/view/vuln/detail?vulnId=CVE-2019-5436"
+          }
+        ],
+        "semver": {
+          "vulnerable": "libcurl:7.64.0-r2"
+        },
+        "severity": "medium",
+        "severityWithCritical": "medium",
+        "title": "CVE-2019-5436",
+        "from": [
+          "docker.example.com/example:latest"
+        ],
+        "upgradePath": [],
+        "isUpgradable": true,
+        "isPatchable": true,
+        "name": "CVE-2019-5436",
+        "version": "7.64.0-r2"
+      }
+    ],
+    "ok": false,
+    "dependencyCount": 14,
+    "org": "myorg",
+    "policy": "# Snyk (https://snyk.io) policy file, patches or ignores known vulnerabilities.\nversion: v1.19.0\nignore: {}\npatch: {}\n",
+    "isPrivate": true,
+    "licensesPolicy": {
+      "severities": {},
+      "orgLicenseRules": {}
+    },
+    "packageManager": "apk",
+    "ignoreSettings": {
+      "adminOnly": false,
+      "reasonRequired": false,
+      "disregardFilesystemIgnores": false
+    },
+    "summary": "1 vulnerable dependency path",
+    "filesystemPolicy": false,
+    "filtered": {
+      "ignore": [],
+      "patch": []
+    },
+    "uniqueCount": 1,
+    "projectName": "docker.example.com",
+    "foundProjectCount": 3,
+    "displayTargetFile": "pom.xml",
+    "path": "C:\\workspace"
+  }
+]

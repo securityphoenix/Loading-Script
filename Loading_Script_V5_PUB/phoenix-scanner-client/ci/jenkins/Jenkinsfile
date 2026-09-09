@@ -1,0 +1,71 @@
+// Jenkinsfile for Phoenix Scanner Upload
+// Configure in Jenkins with credentials:
+// - PHOENIX_SCANNER_API_URL
+// - PHOENIX_SCANNER_API_KEY
+// - PHOENIX_CLIENT_ID
+// - PHOENIX_CLIENT_SECRET
+// - PHOENIX_API_URL
+
+pipeline {
+    agent any
+    
+    parameters {
+        string(name: 'SCAN_FILE', defaultValue: 'scan-results.json', description: 'Scanner output file')
+        choice(name: 'SCANNER_TYPE', choices: ['auto', 'trivy', 'grype', 'qualys', 'prowler'], description: 'Scanner type')
+        choice(name: 'IMPORT_TYPE', choices: ['new', 'merge', 'delta'], description: 'Import type')
+        booleanParam(name: 'WAIT_FOR_COMPLETION', defaultValue: true, description: 'Wait for upload to complete')
+    }
+    
+    environment {
+        PHOENIX_SCANNER_API_URL = credentials('phoenix-scanner-api-url')
+        PHOENIX_SCANNER_API_KEY = credentials('phoenix-scanner-api-key')
+        PHOENIX_CLIENT_ID = credentials('phoenix-client-id')
+        PHOENIX_CLIENT_SECRET = credentials('phoenix-client-secret')
+        PHOENIX_API_URL = credentials('phoenix-api-url')
+    }
+    
+    stages {
+        stage('Setup') {
+            steps {
+                sh '''
+                    python3 -m pip install --user -r phoenix-scanner-client/requirements.txt
+                '''
+            }
+        }
+        
+        stage('Upload Scan') {
+            steps {
+                script {
+                    def waitFlag = params.WAIT_FOR_COMPLETION ? '--wait' : ''
+                    
+                    sh """
+                        cd phoenix-scanner-client
+                        python3 actions/upload_single.py \
+                            --file "${params.SCAN_FILE}" \
+                            --scanner-type "${params.SCANNER_TYPE}" \
+                            --import-type "${params.IMPORT_TYPE}" \
+                            --assessment "${env.JOB_NAME}-${env.BUILD_NUMBER}" \
+                            ${waitFlag} \
+                            --report upload-report.txt \
+                            --verbose
+                    """
+                }
+            }
+        }
+    }
+    
+    post {
+        always {
+            archiveArtifacts artifacts: 'phoenix-scanner-client/upload-report.txt', allowEmptyArchive: true
+        }
+        success {
+            echo 'Phoenix Scanner upload completed successfully'
+        }
+        failure {
+            echo 'Phoenix Scanner upload failed'
+        }
+    }
+}
+
+
+

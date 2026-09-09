@@ -1,0 +1,36 @@
+# Phoenix Scanner Client - Requirements
+
+# HTTP client
+requests>=2.31.0
+urllib3>=2.0.0
+
+# Async support
+aiohttp>=3.9.0
+asyncio>=3.4.3
+
+# WebSocket support
+websockets>=12.0
+
+# Configuration
+PyYAML>=6.0.1
+python-dotenv>=1.0.0
+
+# CLI enhancements
+click>=8.1.7
+rich>=13.7.0  # Beautiful terminal output
+tqdm>=4.66.1  # Progress bars
+
+# File handling
+pathlib2>=2.3.7
+
+# Utilities
+python-dateutil>=2.8.2
+tabulate>=0.9.0
+
+# Testing (optional)
+pytest>=7.4.0
+pytest-asyncio>=0.21.0
+pytest-cov>=4.1.0
+
+
+

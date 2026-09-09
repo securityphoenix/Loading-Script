@@ -1,0 +1,161 @@
+# Phoenix Scanner Client - Test Configuration
+# This configuration is used for unit and integration tests
+
+# API Configuration (Service)
+# This authenticates to the Phoenix Scanner Service API
+api_url: http://localhost:8085/
+api_key: asdllasdllknasdlnkasdlknas  # Must match API_KEY in phoenix-scanner-service/.env
+
+# Phoenix Platform Credentials (REQUIRED for actual imports)
+# These authenticate to the Phoenix Security Platform where results are uploaded
+# Get these from your Phoenix account settings
+phoenix_client_id: xxxx
+phoenix_client_secret: xxxx
+phoenix_api_url: https://api.demo.appsecphx.io # or https://api.staging.appsecphx.io your api key
+
+# Test Settings
+test_settings:
+  timeout: 300
+  concurrent_uploads: 2
+  wait_for_completion: true
+  enable_verbose: true
+
+# Scanner Test Files
+# Each test case specifies the scanner type, file, and expected behavior
+test_cases:
+  # SAST - Checkmarx
+  - name: "SAST - Checkmarx Multiple Findings"
+    scanner_type: checkmarx
+    asset_type: CODE
+    import_type: new
+    file_path: test_data/checkmarx/multiple_findings_same_file_different_line_number.xml
+    expected_status: completed
+    min_findings: 1
+    
+  - name: "SAST - Checkmarx Aggregated Findings"
+    scanner_type: checkmarx
+    asset_type: CODE
+    import_type: new
+    file_path: test_data/checkmarx/many_aggregated_findings.xml
+    expected_status: completed
+    min_findings: 10
+
+  # Infrastructure - Qualys
+  - name: "Infrastructure - Qualys Sample Report CSV"
+    scanner_type: qualys
+    asset_type: INFRA
+    import_type: new
+    file_path: test_data/qualys/Qualys_Sample_Report.csv
+    expected_status: completed
+    min_findings: 1
+  
+  - name: "Infrastructure - Qualys Sample Report XML"
+    scanner_type: qualys
+    asset_type: INFRA
+    import_type: merge
+    file_path: test_data/qualys/Qualys_Sample_Report.xml
+    expected_status: completed
+    min_findings: 1
+
+  # Infrastructure - Nessus/Tenable
+  - name: "Infrastructure - Nessus Many Vulnerabilities"
+    scanner_type: tenable
+    asset_type: INFRA
+    import_type: new
+    file_path: test_data/nessus/nessus_many_vuln.xml
+    expected_status: completed
+    min_findings: 10
+  
+  - name: "Infrastructure - Nessus with CVSS v3"
+    scanner_type: tenable
+    asset_type: INFRA
+    import_type: new
+    file_path: test_data/nessus/nessus_with_cvssv3.xml
+    expected_status: completed
+    min_findings: 1
+  
+  - name: "Infrastructure - Tenable CSV Report"
+    scanner_type: tenable
+    asset_type: INFRA
+    import_type: new
+    file_path: test_data/nessus/tenable_many_vuln.csv
+    expected_status: completed
+    min_findings: 10
+
+  # Container - Trivy
+  - name: "Container - Trivy All Statuses"
+    scanner_type: trivy
+    asset_type: CONTAINER
+    import_type: new
+    file_path: test_data/trivy/all_statuses.json
+    expected_status: completed
+    min_findings: 1
+  
+  - name: "Container - Trivy with CVSS Severity"
+    scanner_type: trivy
+    asset_type: CONTAINER
+    import_type: merge
+    file_path: test_data/trivy/cvss_severity_source.json
+    expected_status: completed
+    min_findings: 1
+  
+  - name: "Container - Trivy Large Scan"
+    scanner_type: trivy
+    asset_type: CONTAINER
+    import_type: new
+    file_path: test_data/trivy/issue_10991.json
+    expected_status: completed
+    min_findings: 10
+
+  # Web - Acunetix
+  - name: "Web - Acunetix Many Findings"
+    scanner_type: acunetix
+    asset_type: WEB
+    import_type: new
+    file_path: test_data/acunetix/acunetix360_many_findings.json
+    expected_status: completed
+    min_findings: 10
+  
+  - name: "Web - Acunetix Single Finding"
+    scanner_type: acunetix
+    asset_type: WEB
+    import_type: new
+    file_path: test_data/acunetix/acunetix360_one_finding.json
+    expected_status: completed
+    min_findings: 1
+  
+  - name: "Web - Acunetix Multiple CWE"
+    scanner_type: acunetix
+    asset_type: WEB
+    import_type: new
+    file_path: test_data/acunetix/acunetix360_multiple_cwe.json
+    expected_status: completed
+    min_findings: 1
+
+  # Cloud - Prowler
+  - name: "Cloud - Prowler Many Vulnerabilities JSON"
+    scanner_type: prowler
+    asset_type: CLOUD
+    import_type: new
+    file_path: test_data/prowler/many_vuln.json
+    expected_status: completed
+    min_findings: 5
+  
+  - name: "Cloud - Prowler Many Vulnerabilities CSV"
+    scanner_type: prowler
+    asset_type: CLOUD
+    import_type: merge
+    file_path: test_data/prowler/many_vuln.csv
+    expected_status: completed
+    min_findings: 5
+
+# Batch Test Configuration
+batch_tests:
+  - name: "Multi-Scanner Batch Test"
+    description: "Test uploading multiple scanner types simultaneously"
+    test_cases:
+      - SAST - Checkmarx Multiple Findings
+      - Infrastructure - Qualys Sample Report CSV
+      - Container - Trivy All Statuses
+      - Web - Acunetix Single Finding
+      - Cloud - Prowler Many Vulnerabilities JSON

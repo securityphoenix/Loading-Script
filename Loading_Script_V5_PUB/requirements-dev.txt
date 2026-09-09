@@ -1,0 +1,57 @@
+# Phoenix Multi-Scanner Import Tool - Development Requirements
+# =============================================================
+#
+# This file includes all development, testing, and documentation
+# dependencies in addition to the core production requirements.
+#
+# Installation:
+#   pip install -r requirements-dev.txt
+
+# Include all production requirements
+-r requirements.txt
+
+# Testing
+# -------
+pytest>=7.4.0                # Testing framework
+pytest-cov>=4.1.0            # Test coverage reporting
+pytest-mock>=3.11.1          # Mocking for tests
+pytest-timeout>=2.1.0        # Timeout control for tests
+responses>=0.23.0            # Mock HTTP requests for testing
+
+# Code Quality
+# ------------
+black>=23.7.0                # Code formatting
+flake8>=6.1.0                # Style guide enforcement
+pylint>=2.17.0               # Code analysis
+mypy>=1.5.0                  # Static type checking
+isort>=5.12.0                # Import sorting
+autopep8>=2.0.4              # Auto-formatting
+
+# Security
+# --------
+bandit>=1.7.5                # Security issue scanner
+safety>=2.3.5                # Dependency vulnerability checker
+
+# Development Tools
+# -----------------
+ipython>=8.14.0              # Enhanced interactive Python shell
+ipdb>=0.13.13                # IPython-based debugger
+python-dotenv>=1.0.0         # Environment variable management
+
+# Documentation
+# -------------
+mkdocs>=1.5.0                # Documentation site generator
+mkdocs-material>=9.2.0       # Material theme for MkDocs
+markdown-include>=0.8.1      # Include markdown files in docs
+pymdown-extensions>=10.0     # Markdown extensions for MkDocs
+
+# Performance Monitoring
+# ----------------------
+memory-profiler>=0.61.0      # Memory usage profiling
+py-spy>=0.3.14               # Statistical profiler
+
+# Utilities
+# ---------
+pre-commit>=3.3.3            # Git pre-commit hooks
+tox>=4.6.4                   # Test automation across Python versions
+

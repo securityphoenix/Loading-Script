@@ -1,0 +1,26 @@
+# Phoenix Scanner Client Configuration Example
+# Copy this file to config.yaml and update with your values
+
+# API Configuration
+api_url: http://localhost:8000
+api_key: your-api-key-here
+
+# Phoenix Security API Credentials (optional, can provide per-upload)
+phoenix_client_id: your-phoenix-client-id
+phoenix_client_secret: your-phoenix-secret
+phoenix_api_url: https://api.demo.appsecphx.io
+
+# Default Settings
+default_scanner_type: auto
+default_import_type: new
+enable_batching: true
+fix_data: true
+
+# Advanced Options
+timeout: 3600  # seconds
+max_retries: 3
+verify_ssl: true
+verbose: false
+
+
+

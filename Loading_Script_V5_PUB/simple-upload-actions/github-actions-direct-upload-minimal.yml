@@ -1,0 +1,96 @@
+name: Phoenix Direct Upload (Minimal)
+
+on:
+  workflow_dispatch:
+    inputs:
+      scan_file:
+        description: "Path to scanner output file"
+        required: true
+        default: "scan-results.json"
+      scanner_type:
+        description: "Scanner type or auto"
+        required: false
+        default: "auto"
+
+jobs:
+  upload:
+    runs-on: ubuntu-latest
+    env:
+      PHOENIX_CLIENT_ID: ${{ secrets.PHOENIX_CLIENT_ID }}
+      PHOENIX_CLIENT_SECRET: ${{ secrets.PHOENIX_CLIENT_SECRET }}
+      PHOENIX_API_BASE_URL: ${{ secrets.PHOENIX_API_BASE_URL }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install requirements
+        working-directory: Loading_Script_V5
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+
+      - name: Direct upload with manual tag template
+        working-directory: Loading_Script_V5
+        run: |
+          python phoenix_multi_scanner_enhanced.py \
+            --file "${{ inputs.scan_file }}" \
+            --scanner "${{ inputs.scanner_type }}" \
+            --import-type delta \
+            --assessment "gh-${{ github.repository }}-${{ github.run_id }}" \
+            --tag-file simple-upload-actions/pipeline-tags.template.yaml \
+            --fix-data \
+            --enable-batching \
+            --verify-import
+name: Phoenix Direct Upload (Minimal)
+
+on:
+  workflow_dispatch:
+    inputs:
+      scan_file:
+        description: "Path to scanner output file"
+        required: true
+        default: "scan-results.json"
+      scanner_type:
+        description: "Scanner type or auto"
+        required: false
+        default: "auto"
+
+jobs:
+  upload:
+    runs-on: ubuntu-latest
+    env:
+      PHOENIX_CLIENT_ID: ${{ secrets.PHOENIX_CLIENT_ID }}
+      PHOENIX_CLIENT_SECRET: ${{ secrets.PHOENIX_CLIENT_SECRET }}
+      PHOENIX_API_BASE_URL: ${{ secrets.PHOENIX_API_BASE_URL }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install requirements
+        working-directory: Loading_Script_V5
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+
+      - name: Direct upload with manual tag template
+        working-directory: Loading_Script_V5
+        run: |
+          python phoenix_multi_scanner_enhanced.py \
+            --file "${{ inputs.scan_file }}" \
+            --scanner "${{ inputs.scanner_type }}" \
+            --import-type delta \
+            --assessment "gh-${{ github.repository }}-${{ github.run_id }}" \
+            --tag-file simple-upload-actions/pipeline-tags.template.yaml \
+            --fix-data \
+            --enable-batching \
+            --verify-import

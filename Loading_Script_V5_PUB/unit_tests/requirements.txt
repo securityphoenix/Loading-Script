@@ -1,0 +1,19 @@
+# Phoenix Scanner Unit Tests - Requirements
+# These are additional to the main client requirements
+
+# Test framework
+pytest>=7.4.0
+pytest-asyncio>=0.21.0
+pytest-cov>=4.1.0
+pytest-timeout>=2.1.0
+
+# Configuration
+PyYAML>=6.0.1
+
+# Already included in client requirements, but listed for completeness:
+# requests>=2.31.0
+# rich>=13.7.0
+# websockets>=12.0
+
+
+

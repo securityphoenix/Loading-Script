@@ -1,0 +1,124 @@
+pipeline {
+    agent any
+
+    parameters {
+        string(name: 'SCAN_FILE', defaultValue: 'scan-results.json', description: 'Scanner output file path')
+        string(name: 'SCANNER_TYPE', defaultValue: 'auto', description: 'Scanner type or auto')
+        choice(name: 'ASSET_TYPE', choices: ['INFRA', 'WEB', 'CLOUD', 'CONTAINER', 'REPOSITORY', 'CODE', 'BUILD'], description: 'Asset type override')
+        choice(name: 'IMPORT_TYPE', choices: ['delta', 'merge', 'new'], description: 'Import mode')
+    }
+
+    environment {
+        PHOENIX_CLIENT_ID = credentials('phoenix-client-id')
+        PHOENIX_CLIENT_SECRET = credentials('phoenix-client-secret')
+        PHOENIX_API_BASE_URL = credentials('phoenix-api-base-url')
+    }
+
+    stages {
+        stage('Install Dependencies') {
+            steps {
+                sh '''
+                    cd Loading_Script_V5
+                    python3 -m pip install --user -r requirements.txt
+                '''
+            }
+        }
+
+        stage('Generate Pipeline Metadata') {
+            steps {
+                sh '''
+                    cd Loading_Script_V5
+                    python3 simple-upload-actions/generate_pipeline_tag_file.py \
+                        --output pipeline-tags.yaml \
+                        --metadata-json pipeline-metadata.json
+                '''
+            }
+        }
+
+        stage('Direct Upload to Phoenix') {
+            steps {
+                sh '''
+                    cd Loading_Script_V5
+                    python3 phoenix_multi_scanner_enhanced.py \
+                        --file "${SCAN_FILE}" \
+                        --scanner "${SCANNER_TYPE}" \
+                        --asset-type "${ASSET_TYPE}" \
+                        --import-type "${IMPORT_TYPE}" \
+                        --assessment "jenkins-${JOB_NAME}-${BUILD_NUMBER}" \
+                        --tag-file pipeline-tags.yaml \
+                        --fix-data \
+                        --enable-batching \
+                        --verify-import
+                '''
+            }
+        }
+    }
+
+    post {
+        always {
+            archiveArtifacts artifacts: 'Loading_Script_V5/pipeline-tags.yaml,Loading_Script_V5/pipeline-metadata.json', allowEmptyArchive: true
+        }
+    }
+}
+pipeline {
+    agent any
+
+    parameters {
+        string(name: 'SCAN_FILE', defaultValue: 'scan-results.json', description: 'Scanner output file path')
+        string(name: 'SCANNER_TYPE', defaultValue: 'auto', description: 'Scanner type or auto')
+        choice(name: 'ASSET_TYPE', choices: ['INFRA', 'WEB', 'CLOUD', 'CONTAINER', 'REPOSITORY', 'CODE', 'BUILD'], description: 'Asset type override')
+        choice(name: 'IMPORT_TYPE', choices: ['delta', 'merge', 'new'], description: 'Import mode')
+    }
+
+    environment {
+        PHOENIX_CLIENT_ID = credentials('phoenix-client-id')
+        PHOENIX_CLIENT_SECRET = credentials('phoenix-client-secret')
+        PHOENIX_API_BASE_URL = credentials('phoenix-api-base-url')
+    }
+
+    stages {
+        stage('Install Dependencies') {
+            steps {
+                sh '''
+                    cd Loading_Script_V5
+                    python3 -m pip install --user -r requirements.txt
+                '''
+            }
+        }
+
+        stage('Generate Pipeline Metadata') {
+            steps {
+                sh '''
+                    cd Loading_Script_V5
+                    python3 simple-upload-actions/generate_pipeline_tag_file.py \
+                        --output pipeline-tags.yaml \
+                        --metadata-json pipeline-metadata.json
+                '''
+            }
+        }
+
+        stage('Direct Upload to Phoenix') {
+            steps {
+                sh '''
+                    cd Loading_Script_V5
+                    python3 phoenix_multi_scanner_enhanced.py \
+                        --file "${SCAN_FILE}" \
+                        --scanner "${SCANNER_TYPE}" \
+                        --asset-type "${ASSET_TYPE}" \
+                        --import-type "${IMPORT_TYPE}" \
+                        --assessment "jenkins-${JOB_NAME}-${BUILD_NUMBER}" \
+                        --tag-file pipeline-tags.yaml \
+                        --fix-data \
+                        --enable-batching \
+                        --verify-import
+                '''
+            }
+        }
+    }
+
+    post {
+        always {
+            archiveArtifacts artifacts: 'Loading_Script_V5/pipeline-tags.yaml,Loading_Script_V5/pipeline-metadata.json', allowEmptyArchive: true
+        }
+    }
+}

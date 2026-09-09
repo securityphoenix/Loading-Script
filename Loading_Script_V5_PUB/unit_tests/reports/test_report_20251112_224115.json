@@ -1,0 +1,149 @@
+{
+  "timestamp": "20251112_224115",
+  "total_tests": 20,
+  "passed": 0,
+  "failed": 20,
+  "duration": 57.91292095184326,
+  "results": [
+    {
+      "name": "SAST - Checkmarx Multiple Findings",
+      "success": false,
+      "message": "Expected completed, got failed",
+      "duration": 2.0605697631835938,
+      "job_id": "job-66d178791ba5"
+    },
+    {
+      "name": "SAST - Checkmarx Aggregated Findings",
+      "success": false,
+      "message": "Expected completed, got failed",
+      "duration": 2.0401391983032227,
+      "job_id": "job-83580b8a7f6f"
+    },
+    {
+      "name": "Infrastructure - Qualys Sample Report CSV",
+      "success": false,
+      "message": "Expected completed, got failed",
+      "duration": 2.0475668907165527,
+      "job_id": "job-33178839b456"
+    },
+    {
+      "name": "Infrastructure - Qualys Sample Report XML",
+      "success": false,
+      "message": "Expected completed, got failed",
+      "duration": 2.0397789478302,
+      "job_id": "job-2aae1a52b338"
+    },
+    {
+      "name": "Infrastructure - Nessus Many Vulnerabilities",
+      "success": false,
+      "message": "Expected completed, got failed",
+      "duration": 2.0473990440368652,
+      "job_id": "job-b418f4d37da6"
+    },
+    {
+      "name": "Infrastructure - Nessus with CVSS v3",
+      "success": false,
+      "message": "Expected completed, got failed",
+      "duration": 2.0539348125457764,
+      "job_id": "job-d626f41691bc"
+    },
+    {
+      "name": "Infrastructure - Tenable CSV Report",
+      "success": false,
+      "message": "Expected completed, got failed",
+      "duration": 2.0418577194213867,
+      "job_id": "job-f57ed804be8c"
+    },
+    {
+      "name": "Container - Trivy All Statuses",
+      "success": false,
+      "message": "Expected completed, got failed",
+      "duration": 2.3424079418182373,
+      "job_id": "job-373b93d7483b"
+    },
+    {
+      "name": "Container - Trivy with CVSS Severity",
+      "success": false,
+      "message": "Expected completed, got failed",
+      "duration": 2.0400898456573486,
+      "job_id": "job-9112b081c907"
+    },
+    {
+      "name": "Container - Trivy Large Scan",
+      "success": false,
+      "message": "Expected completed, got failed",
+      "duration": 2.080479145050049,
+      "job_id": "job-0e13fd1309d5"
+    },
+    {
+      "name": "Web - Acunetix Many Findings",
+      "success": false,
+      "message": "Expected completed, got failed",
+      "duration": 2.0395028591156006,
+      "job_id": "job-dd73f66dc3c3"
+    },
+    {
+      "name": "Web - Acunetix Single Finding",
+      "success": false,
+      "message": "Expected completed, got failed",
+      "duration": 2.044829845428467,
+      "job_id": "job-231c38303640"
+    },
+    {
+      "name": "Web - Acunetix Multiple CWE",
+      "success": false,
+      "message": "Expected completed, got failed",
+      "duration": 2.0432701110839844,
+      "job_id": "job-12348d75b5fe"
+    },
+    {
+      "name": "Cloud - Prowler Many Vulnerabilities JSON",
+      "success": false,
+      "message": "Expected completed, got failed",
+      "duration": 2.0677449703216553,
+      "job_id": "job-f1d7d39fb3dd"
+    },
+    {
+      "name": "Cloud - Prowler Many Vulnerabilities CSV",
+      "success": false,
+      "message": "Expected completed, got failed",
+      "duration": 2.038691997528076,
+      "job_id": "job-6fc5621eae00"
+    },
+    {
+      "name": "SAST - Checkmarx Multiple Findings",
+      "success": false,
+      "message": "Expected completed, got failed",
+      "duration": 2.032150983810425,
+      "job_id": "job-471091898e87"
+    },
+    {
+      "name": "Infrastructure - Qualys Sample Report CSV",
+      "success": false,
+      "message": "Expected completed, got failed",
+      "duration": 2.0381851196289062,
+      "job_id": "job-d055098fed01"
+    },
+    {
+      "name": "Container - Trivy All Statuses",
+      "success": false,
+      "message": "Expected completed, got failed",
+      "duration": 2.0292468070983887,
+      "job_id": "job-8450adca26b4"
+    },
+    {
+      "name": "Web - Acunetix Single Finding",
+      "success": false,
+      "message": "Expected completed, got failed",
+      "duration": 2.0481529235839844,
+      "job_id": "job-9a388de2e183"
+    },
+    {
+      "name": "Cloud - Prowler Many Vulnerabilities JSON",
+      "success": false,
+      "message": "Expected completed, got failed",
+      "duration": 2.0429580211639404,
+      "job_id": "job-1d96f471398c"
+    }
+  ]
+}

@@ -1,0 +1,149 @@
+{
+  "timestamp": "20251112_223206",
+  "total_tests": 20,
+  "passed": 0,
+  "failed": 20,
+  "duration": 649.4514150619507,
+  "results": [
+    {
+      "name": "SAST - Checkmarx Multiple Findings",
+      "success": false,
+      "message": "HTTPConnectionPool(host='localhost', port=8001): Max retries exceeded with url: /api/v1/jobs/job-82940a0ec32d (Caused by NewConnectionError('<urllib3.connection.HTTPConnection object at 0x10fce2090>: Failed to establish a new connection: [Errno 61] Connection refused'))",
+      "duration": 434.86181116104126,
+      "job_id": null
+    },
+    {
+      "name": "SAST - Checkmarx Aggregated Findings",
+      "success": false,
+      "message": "Upload failed after 3 attempts: HTTPConnectionPool(host='localhost', port=8001): Max retries exceeded with url: /api/v1/upload (Caused by NewConnectionError('<urllib3.connection.HTTPConnection object at 0x10fd0add0>: Failed to establish a new connection: [Errno 61] Connection refused'))",
+      "duration": 3.0225369930267334,
+      "job_id": null
+    },
+    {
+      "name": "Infrastructure - Qualys Sample Report CSV",
+      "success": false,
+      "message": "Upload failed after 3 attempts: HTTPConnectionPool(host='localhost', port=8001): Max retries exceeded with url: /api/v1/upload (Caused by NewConnectionError('<urllib3.connection.HTTPConnection object at 0x10fd180d0>: Failed to establish a new connection: [Errno 61] Connection refused'))",
+      "duration": 3.0175750255584717,
+      "job_id": null
+    },
+    {
+      "name": "Infrastructure - Qualys Sample Report XML",
+      "success": false,
+      "message": "HTTPConnectionPool(host='localhost', port=8001): Max retries exceeded with url: /api/v1/jobs/job-5ca04d328ab4 (Caused by NewConnectionError('<urllib3.connection.HTTPConnection object at 0x10fd1c2d0>: Failed to establish a new connection: [Errno 61] Connection refused'))",
+      "duration": 85.65620589256287,
+      "job_id": null
+    },
+    {
+      "name": "Infrastructure - Nessus Many Vulnerabilities",
+      "success": false,
+      "message": "Upload failed after 3 attempts: HTTPConnectionPool(host='localhost', port=8001): Max retries exceeded with url: /api/v1/upload (Caused by NewConnectionError('<urllib3.connection.HTTPConnection object at 0x10fd0ee10>: Failed to establish a new connection: [Errno 61] Connection refused'))",
+      "duration": 3.024196147918701,
+      "job_id": null
+    },
+    {
+      "name": "Infrastructure - Nessus with CVSS v3",
+      "success": false,
+      "message": "Upload failed after 3 attempts: HTTPConnectionPool(host='localhost', port=8001): Max retries exceeded with url: /api/v1/upload (Caused by NewConnectionError('<urllib3.connection.HTTPConnection object at 0x10fd24890>: Failed to establish a new connection: [Errno 61] Connection refused'))",
+      "duration": 3.0221810340881348,
+      "job_id": null
+    },
+    {
+      "name": "Infrastructure - Tenable CSV Report",
+      "success": false,
+      "message": "Upload failed after 3 attempts: HTTPConnectionPool(host='localhost', port=8001): Max retries exceeded with url: /api/v1/upload (Caused by NewConnectionError('<urllib3.connection.HTTPConnection object at 0x10fd2cf50>: Failed to establish a new connection: [Errno 61] Connection refused'))",
+      "duration": 3.0227081775665283,
+      "job_id": null
+    },
+    {
+      "name": "Container - Trivy All Statuses",
+      "success": false,
+      "message": "HTTPConnectionPool(host='localhost', port=8001): Max retries exceeded with url: /api/v1/jobs/job-3691f730d0b3 (Caused by NewConnectionError('<urllib3.connection.HTTPConnection object at 0x10fd1cad0>: Failed to establish a new connection: [Errno 61] Connection refused'))",
+      "duration": 61.56157183647156,
+      "job_id": null
+    },
+    {
+      "name": "Container - Trivy with CVSS Severity",
+      "success": false,
+      "message": "Upload failed after 3 attempts: HTTPConnectionPool(host='localhost', port=8001): Max retries exceeded with url: /api/v1/upload (Caused by NewConnectionError('<urllib3.connection.HTTPConnection object at 0x10fd2e6d0>: Failed to establish a new connection: [Errno 61] Connection refused'))",
+      "duration": 3.014204978942871,
+      "job_id": null
+    },
+    {
+      "name": "Container - Trivy Large Scan",
+      "success": false,
+      "message": "Upload failed after 3 attempts: HTTPConnectionPool(host='localhost', port=8001): Max retries exceeded with url: /api/v1/upload (Caused by NewConnectionError('<urllib3.connection.HTTPConnection object at 0x10fd3f2d0>: Failed to establish a new connection: [Errno 61] Connection refused'))",
+      "duration": 3.020780086517334,
+      "job_id": null
+    },
+    {
+      "name": "Web - Acunetix Many Findings",
+      "success": false,
+      "message": "Expected completed, got failed",
+      "duration": 11.202733993530273,
+      "job_id": "job-8d055ece066d"
+    },
+    {
+      "name": "Web - Acunetix Single Finding",
+      "success": false,
+      "message": "Expected completed, got failed",
+      "duration": 2.037020206451416,
+      "job_id": "job-44a16d84bde0"
+    },
+    {
+      "name": "Web - Acunetix Multiple CWE",
+      "success": false,
+      "message": "Expected completed, got failed",
+      "duration": 2.0358550548553467,
+      "job_id": "job-00c2fe8b46e5"
+    },
+    {
+      "name": "Cloud - Prowler Many Vulnerabilities JSON",
+      "success": false,
+      "message": "Expected completed, got failed",
+      "duration": 2.0358967781066895,
+      "job_id": "job-ad70954f8d76"
+    },
+    {
+      "name": "Cloud - Prowler Many Vulnerabilities CSV",
+      "success": false,
+      "message": "Expected completed, got failed",
+      "duration": 2.045377016067505,
+      "job_id": "job-7513dbe730ff"
+    },
+    {
+      "name": "SAST - Checkmarx Multiple Findings",
+      "success": false,
+      "message": "Expected completed, got failed",
+      "duration": 2.0315277576446533,
+      "job_id": "job-b44a6243b1b4"
+    },
+    {
+      "name": "Infrastructure - Qualys Sample Report CSV",
+      "success": false,
+      "message": "Expected completed, got failed",
+      "duration": 2.0329787731170654,
+      "job_id": "job-491880b836b7"
+    },
+    {
+      "name": "Container - Trivy All Statuses",
+      "success": false,
+      "message": "Expected completed, got failed",
+      "duration": 2.0355989933013916,
+      "job_id": "job-e826e2fb9b0c"
+    },
+    {
+      "name": "Web - Acunetix Single Finding",
+      "success": false,
+      "message": "Expected completed, got failed",
+      "duration": 2.0367958545684814,
+      "job_id": "job-80284ce77898"
+    },
+    {
+      "name": "Cloud - Prowler Many Vulnerabilities JSON",
+      "success": false,
+      "message": "Expected completed, got failed",
+      "duration": 2.0799381732940674,
+      "job_id": "job-a0e7ce87c9aa"
+    }
+  ]
+}

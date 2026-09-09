@@ -1,0 +1,81 @@
+# Azure DevOps Pipeline for Phoenix Scanner Upload
+# Configure variables in Azure DevOps Library:
+# - PHOENIX_SCANNER_API_URL
+# - PHOENIX_SCANNER_API_KEY
+# - PHOENIX_CLIENT_ID
+# - PHOENIX_CLIENT_SECRET
+# - PHOENIX_API_URL
+
+trigger:
+  - main
+
+parameters:
+  - name: scanFile
+    displayName: 'Scanner Output File'
+    type: string
+    default: 'scan-results.json'
+  
+  - name: scannerType
+    displayName: 'Scanner Type'
+    type: string
+    default: 'auto'
+    values:
+      - auto
+      - trivy
+      - grype
+      - qualys
+      - prowler
+      - sonarqube
+  
+  - name: importType
+    displayName: 'Import Type'
+    type: string
+    default: 'new'
+    values:
+      - new
+      - merge
+      - delta
+
+variables:
+  - group: phoenix-scanner-credentials
+
+pool:
+  vmImage: 'ubuntu-latest'
+
+steps:
+  - task: UsePythonVersion@0
+    inputs:
+      versionSpec: '3.11'
+      addToPath: true
+    displayName: 'Setup Python'
+  
+  - script: |
+      pip install -r phoenix-scanner-client/requirements.txt
+    displayName: 'Install Dependencies'
+  
+  - script: |
+      cd phoenix-scanner-client
+      python actions/upload_single.py \
+        --file "${{ parameters.scanFile }}" \
+        --scanner-type "${{ parameters.scannerType }}" \
+        --import-type "${{ parameters.importType }}" \
+        --assessment "$(Build.DefinitionName)-$(Build.BuildNumber)" \
+        --wait \
+        --report upload-report.txt \
+        --verbose
+    env:
+      PHOENIX_SCANNER_API_URL: $(PHOENIX_SCANNER_API_URL)
+      PHOENIX_SCANNER_API_KEY: $(PHOENIX_SCANNER_API_KEY)
+      PHOENIX_CLIENT_ID: $(PHOENIX_CLIENT_ID)
+      PHOENIX_CLIENT_SECRET: $(PHOENIX_CLIENT_SECRET)
+      PHOENIX_API_URL: $(PHOENIX_API_URL)
+    displayName: 'Upload to Phoenix Scanner'
+  
+  - task: PublishBuildArtifacts@1
+    condition: always()
+    inputs:
+      pathToPublish: 'phoenix-scanner-client/upload-report.txt'
+      artifactName: 'phoenix-scanner-report'
+    displayName: 'Publish Report'
+
+

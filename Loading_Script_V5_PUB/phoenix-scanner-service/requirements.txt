@@ -1,0 +1,54 @@
+# FastAPI and web framework
+# SECURITY: Updated for compatibility with secure starlette
+fastapi>=0.115.0
+starlette>=0.49.1  # SECURITY: Fix CVE-2025-62727 (Range header DoS) & CVE-2023-30798 (multipart DoS)
+uvicorn[standard]>=0.27.0
+python-multipart>=0.0.22  # SECURITY: Fix CVE-2026-24486, CVE-2024-24762 (ReDoS), CVE-2024-53981
+# Upgraded pydantic to support Python 3.14 (pydantic-core 2.14.6 doesn't build on Python 3.14)
+pydantic>=2.9.0
+pydantic-settings>=2.1.0
+
+# Database
+sqlalchemy>=2.0.25
+alembic>=1.13.1
+
+# Async and concurrency
+celery[redis]>=5.3.4
+redis>=4.6.0
+
+# WebSocket support
+websockets>=12.0
+python-socketio>=5.14.0  # SECURITY: Fix CVE-2025-61765 (RCE via pickle deserialization)
+
+# HTTP client for webhooks
+httpx>=0.26.0
+aiohttp>=3.13.3  # SECURITY: Fix CVE-2025-69223 (zip bomb DoS) and multiple other DoS issues
+
+# Security
+# NOTE: python-jose[cryptography] uses the cryptography backend for ECDSA operations,
+# avoiding the vulnerable python-ecdsa package (CVE-2024-23342 - Minerva timing attack, no fix available).
+# The ecdsa package may still be installed as a transitive dependency but is not used when
+# the cryptography backend is active.
+python-jose[cryptography]>=3.4.0  # SECURITY: Fix CVE-2024-33663 (algorithm confusion)
+passlib[bcrypt]>=1.7.4
+
+# Utilities
+python-dotenv>=1.0.0
+click>=8.1.7
+
+# Monitoring and logging
+prometheus-client>=0.19.0
+
+# Testing (optional, for development)
+pytest>=7.4.4
+pytest-asyncio>=0.23.3
+pytest-cov>=4.1.0
+
+# Phoenix Scanner Dependencies
+# Required for phoenix_multi_scanner_enhanced.py
+requests>=2.32.4  # SECURITY: Fix CVE-2024-47081 (.netrc credentials leak)
+PyYAML>=6.0.1
+colorama>=0.4.6
+python-dateutil>=2.8.2
+urllib3>=2.6.0  # SECURITY: Fix CVE-2025-66418, CVE-2025-66471 (decompression chain attacks)
+pyasn1>=0.6.2  # SECURITY: Fix CVE-2026-23490 (DoS in decoder)

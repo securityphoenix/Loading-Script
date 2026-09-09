@@ -1,0 +1,146 @@
+name: Phoenix Direct Upload (Simple)
+
+on:
+  workflow_dispatch:
+    inputs:
+      scan_file:
+        description: "Path to scanner output file"
+        required: true
+        default: "scan-results.json"
+      scanner_type:
+        description: "Scanner type or auto"
+        required: false
+        default: "auto"
+      asset_type:
+        description: "Asset type override"
+        required: false
+        default: "INFRA"
+      import_type:
+        description: "Import type: new | merge | delta"
+        required: false
+        default: "delta"
+
+jobs:
+  upload:
+    runs-on: ubuntu-latest
+    env:
+      PHOENIX_CLIENT_ID: ${{ secrets.PHOENIX_CLIENT_ID }}
+      PHOENIX_CLIENT_SECRET: ${{ secrets.PHOENIX_CLIENT_SECRET }}
+      PHOENIX_API_BASE_URL: ${{ secrets.PHOENIX_API_BASE_URL }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install dependencies
+        working-directory: Loading_Script_V5
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+
+      - name: Generate pipeline metadata tags
+        working-directory: Loading_Script_V5
+        run: |
+          python simple-upload-actions/generate_pipeline_tag_file.py \
+            --output pipeline-tags.yaml \
+            --metadata-json pipeline-metadata.json
+
+      - name: Upload scan directly to Phoenix
+        working-directory: Loading_Script_V5
+        run: |
+          python phoenix_multi_scanner_enhanced.py \
+            --file "${{ inputs.scan_file }}" \
+            --scanner "${{ inputs.scanner_type }}" \
+            --asset-type "${{ inputs.asset_type }}" \
+            --import-type "${{ inputs.import_type }}" \
+            --assessment "gh-${{ github.repository }}-${{ github.run_id }}" \
+            --tag-file pipeline-tags.yaml \
+            --fix-data \
+            --enable-batching \
+            --verify-import
+
+      - name: Upload metadata artifacts
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: phoenix-upload-metadata
+          path: |
+            Loading_Script_V5/pipeline-tags.yaml
+            Loading_Script_V5/pipeline-metadata.json
+name: Phoenix Direct Upload (Simple)
+
+on:
+  workflow_dispatch:
+    inputs:
+      scan_file:
+        description: "Path to scanner output file"
+        required: true
+        default: "scan-results.json"
+      scanner_type:
+        description: "Scanner type or auto"
+        required: false
+        default: "auto"
+      asset_type:
+        description: "Asset type override"
+        required: false
+        default: "INFRA"
+      import_type:
+        description: "Import type: new | merge | delta"
+        required: false
+        default: "delta"
+
+jobs:
+  upload:
+    runs-on: ubuntu-latest
+    env:
+      PHOENIX_CLIENT_ID: ${{ secrets.PHOENIX_CLIENT_ID }}
+      PHOENIX_CLIENT_SECRET: ${{ secrets.PHOENIX_CLIENT_SECRET }}
+      PHOENIX_API_BASE_URL: ${{ secrets.PHOENIX_API_BASE_URL }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install dependencies
+        working-directory: Loading_Script_V5
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+
+      - name: Generate pipeline metadata tags
+        working-directory: Loading_Script_V5
+        run: |
+          python simple-upload-actions/generate_pipeline_tag_file.py \
+            --output pipeline-tags.yaml \
+            --metadata-json pipeline-metadata.json
+
+      - name: Upload scan directly to Phoenix
+        working-directory: Loading_Script_V5
+        run: |
+          python phoenix_multi_scanner_enhanced.py \
+            --file "${{ inputs.scan_file }}" \
+            --scanner "${{ inputs.scanner_type }}" \
+            --asset-type "${{ inputs.asset_type }}" \
+            --import-type "${{ inputs.import_type }}" \
+            --assessment "gh-${{ github.repository }}-${{ github.run_id }}" \
+            --tag-file pipeline-tags.yaml \
+            --fix-data \
+            --enable-batching \
+            --verify-import
+
+      - name: Upload metadata artifacts
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: phoenix-upload-metadata
+          path: |
+            Loading_Script_V5/pipeline-tags.yaml
+            Loading_Script_V5/pipeline-metadata.json
