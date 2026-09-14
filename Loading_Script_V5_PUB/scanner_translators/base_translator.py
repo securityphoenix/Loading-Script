@@ -14,12 +14,14 @@ Base class for all scanner translators. Provides common functionality for:
 All scanner-specific translators should inherit from ScannerTranslator.
 """
 
+import configparser
 import re
 import logging
 from abc import ABC, abstractmethod
 from dataclasses import dataclass, field
 from datetime import datetime
-from typing import Any, Dict, List, Optional
+from pathlib import Path
+from typing import Any, Callable, Dict, List, Optional
 
 from phoenix_import_refactored import (
     PhoenixConfig, TagConfig, AssetData, VulnerabilityData
@@ -36,6 +38,74 @@ class ScannerConfig:
     default_severity_mapping: Dict[str, str] = field(default_factory=dict)
     custom_field_mappings: Dict[str, str] = field(default_factory=dict)
     vulnerability_filters: List[str] = field(default_factory=list)
+    custom_options: Dict[str, str] = field(default_factory=dict)
+
+
+def load_scanner_configs_from_ini(config_path: str) -> Dict[str, "ScannerConfig"]:
+    """Load per-scanner overrides from ``[scanner_*]`` INI sections."""
+    path = Path(config_path)
+    if not path.exists():
+        return {}
+
+    parser = configparser.ConfigParser()
+    parser.read(path)
+
+    configs: Dict[str, ScannerConfig] = {}
+    for section_name in parser.sections():
+        if not section_name.startswith("scanner_"):
+            continue
+
+        section = parser[section_name]
+        key = section_name[len("scanner_"):]
+        severity_mapping: Dict[str, str] = {}
+        custom_field_mappings: Dict[str, str] = {}
+        custom_options: Dict[str, str] = {}
+        vulnerability_filters: List[str] = []
+
+        for option, value in section.items():
+            if option.startswith("severity_mapping_"):
+                severity_mapping[option[len("severity_mapping_"):]] = value
+            elif option.startswith("field_mapping_"):
+                custom_field_mappings[option[len("field_mapping_"):]] = value
+            elif option == "vulnerability_filters":
+                vulnerability_filters = [item.strip() for item in value.split(",") if item.strip()]
+            elif option not in ("scanner_type", "asset_type"):
+                custom_options[option] = value
+
+        configs[key] = ScannerConfig(
+            scanner_type=section.get("scanner_type", ""),
+            asset_type=section.get("asset_type", ""),
+            default_severity_mapping=severity_mapping,
+            custom_field_mappings=custom_field_mappings,
+            vulnerability_filters=vulnerability_filters,
+            custom_options=custom_options,
+        )
+
+    return configs
+
+
+def merge_scanner_configs(
+    defaults: Dict[str, ScannerConfig],
+    overrides: Dict[str, ScannerConfig],
+) -> Dict[str, ScannerConfig]:
+    """Merge INI-loaded scanner configs onto code defaults."""
+    merged = dict(defaults)
+    for key, ini_cfg in overrides.items():
+        base = merged.get(key)
+        if base is None:
+            merged[key] = ini_cfg
+            continue
+
+        merged[key] = ScannerConfig(
+            scanner_type=ini_cfg.scanner_type or base.scanner_type,
+            asset_type=ini_cfg.asset_type or base.asset_type,
+            default_severity_mapping={**base.default_severity_mapping, **ini_cfg.default_severity_mapping},
+            custom_field_mappings={**base.custom_field_mappings, **ini_cfg.custom_field_mappings},
+            vulnerability_filters=ini_cfg.vulnerability_filters or base.vulnerability_filters,
+            custom_options={**base.custom_options, **ini_cfg.custom_options},
+        )
+
+    return merged
 
 
 class ScannerTranslator(ABC):
@@ -72,6 +142,7 @@ class ScannerTranslator(ABC):
     def promote_oci_labels(
         target_info: Any,
         label_to_attribute: Optional[Dict[str, str]] = None,
+        label_value_transforms: Optional[Dict[str, Callable[[str], str]]] = None,
     ) -> tuple:
         """Split OCI image labels into Phoenix asset attributes and tags.
 
@@ -98,6 +169,10 @@ class ScannerTranslator(ABC):
                 value_str = str(v).strip()
                 if not value_str:
                     continue
+                if label_value_transforms and k in label_value_transforms:
+                    value_str = label_value_transforms[k](value_str)
+                    if not value_str:
+                        continue
                 if k in label_to_attribute:
                     label_attributes[label_to_attribute[k]] = value_str
                 else:
@@ -261,5 +336,10 @@ class ScannerTranslator(ABC):
         return asset
 
 
-__all__ = ['ScannerTranslator', 'ScannerConfig']
+__all__ = [
+    'ScannerTranslator',
+    'ScannerConfig',
+    'load_scanner_configs_from_ini',
+    'merge_scanner_configs',
+]
 

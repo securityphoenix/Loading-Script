@@ -23,7 +23,7 @@ Tagging / Attributes:
 
 import json
 import logging
-from typing import Any, Dict, List
+from typing import Any, Callable, Dict, List, Optional
 
 from finding_reference_normalizer import (
     _dedupe_preserve_order,
@@ -124,6 +124,11 @@ def collect_grype_cwes(vuln_data: Dict[str, Any], match: Dict[str, Any]) -> List
 
 class GrypeTranslator(ScannerTranslator):
     """Translator for Anchore Grype scanner results"""
+
+    def __init__(self, scanner_config: ScannerConfig, tag_config, create_empty_assets: bool = False,
+                 create_inventory_assets: bool = False):
+        super().__init__(scanner_config, tag_config, create_empty_assets, create_inventory_assets)
+        self.label_value_transforms: Optional[Dict[str, Callable[[str], str]]] = None
     
     def can_handle(self, file_path: str, file_content: Any = None) -> bool:
         """Check if this is a Grype scan file"""
@@ -191,7 +196,10 @@ class GrypeTranslator(ScannerTranslator):
         else:
             image_name = str(target_info) if target_info else 'unknown'
 
-        label_attributes, label_tags = self.promote_oci_labels(target_info)
+        label_attributes, label_tags = self.promote_oci_labels(
+            target_info,
+            label_value_transforms=self.label_value_transforms,
+        )
 
         # Create container asset
         asset_attributes = {

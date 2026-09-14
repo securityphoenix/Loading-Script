@@ -66,7 +66,7 @@ class TestErrorMessageFromResult(unittest.TestCase):
         self.assertIn(
             "WORKSPACE_PREFIX",
             error_message_from_result(
-                {"success": False, "error": "--tv-tags requires the WORKSPACE_PREFIX environment variable to be set"}
+                {"success": False, "error": "--remap-oci-labels requires the WORKSPACE_PREFIX environment variable to be set"}
             ),
         )
 

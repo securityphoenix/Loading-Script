@@ -145,6 +145,7 @@ def process_scan_file(self, job_id: str) -> Dict[str, Any]:
             import_type=job.import_type,
             anonymize=processing_options.get('anonymize', False),
             just_tags=processing_options.get('just_tags', False),
+            remap_oci_labels=processing_options.get('remap_oci_labels', False),
             create_empty_assets=processing_options.get('create_empty_assets', False),
             create_inventory_assets=processing_options.get('create_inventory_assets', False),
             enable_batching=processing_options.get('enable_batching', True),

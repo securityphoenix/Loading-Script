@@ -112,6 +112,7 @@ class PhoenixScannerClient:
         import_type: str = "new",
         enable_batching: bool = True,
         fix_data: bool = True,
+        remap_oci_labels: bool = False,
         webhook_url: Optional[str] = None,
         **kwargs
     ) -> Dict[str, Any]:
@@ -126,6 +127,7 @@ class PhoenixScannerClient:
             import_type: Import type (new, merge, delta)
             enable_batching: Enable intelligent batching
             fix_data: Automatically fix data issues
+            remap_oci_labels: Enable the Grype new_authors_key OCI label remap
             webhook_url: Webhook URL for status updates
             **kwargs: Additional parameters
         
@@ -143,6 +145,7 @@ class PhoenixScannerClient:
             "import_type": import_type,
             "enable_batching": str(enable_batching).lower(),
             "fix_data": str(fix_data).lower(),
+            "remap_oci_labels": str(remap_oci_labels).lower(),
         }
         
         # Add optional parameters
