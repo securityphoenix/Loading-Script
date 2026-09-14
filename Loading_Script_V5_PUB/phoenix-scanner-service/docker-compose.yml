@@ -88,6 +88,9 @@ services:
       - PHOENIX_CLIENT_SECRET=${PHOENIX_CLIENT_SECRET:-}
       - PHOENIX_API_URL=${PHOENIX_API_URL:-}
       
+      # Required when using --remap-oci-labels
+      - WORKSPACE_PREFIX=${WORKSPACE_PREFIX:-}
+      
       # Logging
       - LOG_LEVEL=${LOG_LEVEL:-INFO}
       - DEBUG_MODE=${DEBUG_MODE:-false}
@@ -145,6 +148,9 @@ services:
       - PHOENIX_CLIENT_ID=${PHOENIX_CLIENT_ID:-}
       - PHOENIX_CLIENT_SECRET=${PHOENIX_CLIENT_SECRET:-}
       - PHOENIX_API_URL=${PHOENIX_API_URL:-}
+      
+      # Required when using --remap-oci-labels
+      - WORKSPACE_PREFIX=${WORKSPACE_PREFIX:-}
       
       # Worker Settings
       - MAX_CONCURRENT_JOBS=${MAX_CONCURRENT_JOBS:-5}
