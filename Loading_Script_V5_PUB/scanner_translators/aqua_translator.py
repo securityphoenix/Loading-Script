@@ -56,31 +56,53 @@ class AquaTranslator(ScannerTranslator):
         return datetime.now().strftime("%Y-%m-%dT%H:%M:%S")
     
     def can_handle(self, file_path: str, file_content: Any = None) -> bool:
-        """Check if this is an Aqua scan file"""
+        """Check if this is an Aqua scan file.
+
+        Real Aqua exports have `image` as a **root key** (plus corroborating
+        keys such as `vulnerability_summary`, `image_assurance_results`,
+        `scan_started`, `scan_duration`, or `aqua_score`). Older versions of
+        this check used a substring match over the serialized dict, which
+        matched any JSON that happened to contain the words "image" or
+        "resources" anywhere (e.g. Wazuh vulnerability exports carrying the
+        `linux-image-*` Debian package). Require root-level keys instead.
+        """
         if not file_path.lower().endswith('.json'):
             return False
-        
+
         try:
             if file_content is None:
                 with open(file_path, 'r') as f:
                     file_content = json.load(f)
-            
-            # Check for Aqua-specific fields (but NOT Grype fields)
-            if isinstance(file_content, dict):
-                # Exclude Grype files
-                if 'descriptor' in file_content:
-                    descriptor = file_content.get('descriptor', {})
-                    if isinstance(descriptor, dict) and descriptor.get('name', '').lower() == 'grype':
-                        return False
-                
-                # Check for Aqua-specific fields
-                aqua_indicators = ['image', 'resources', 'vulnerability_summary', 'aqua_score', 'aqua_severity']
-                return any(indicator in str(file_content) for indicator in aqua_indicators)
-            
-            return False
         except Exception as e:
-            logger.debug(f"AquaTranslator.can_handle failed: {e}")
+            logger.debug(f"AquaTranslator.can_handle failed to load JSON: {e}")
             return False
+
+        if not isinstance(file_content, dict):
+            return False
+
+        # Exclude Grype files that also carry a `descriptor` block.
+        descriptor = file_content.get('descriptor')
+        if isinstance(descriptor, dict) and str(descriptor.get('name', '')).lower() == 'grype':
+            return False
+
+        # Primary anchor: `image` must be a ROOT key.
+        if 'image' not in file_content:
+            return False
+
+        # Corroborating Aqua-specific ROOT keys — at least one must be present
+        # to distinguish Aqua from any other JSON that happens to carry an
+        # `image` field (e.g. plain container manifests).
+        aqua_root_keys = {
+            'vulnerability_summary',
+            'image_assurance_results',
+            'scan_started',
+            'scan_duration',
+            'aqua_score',
+            'aqua_severity',
+            'resources',
+            'scan_options',
+        }
+        return bool(aqua_root_keys.intersection(file_content.keys()))
     
     def parse_file(self, file_path: str, asset_name_override: str = None) -> List[AssetData]:
         """Parse Aqua scan results

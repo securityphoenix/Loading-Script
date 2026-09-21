@@ -5756,9 +5756,47 @@ scanners:
 # Progress: 157/167 - wazuh
 
   # Wazuh Scanner
+  #
+  # Wazuh vulnerability data ships in two shapes. Since Wazuh 4.8 the
+  # vulnerability detector was moved into the Wazuh Indexer (OpenSearch),
+  # and modern deployments produce OpenSearch-style hits.hits[]._source
+  # documents. Pre-4.8 deployments still emit the legacy Wazuh Manager
+  # REST API shape (data.affected_items[]). We support both. The hard-coded
+  # scanner_translators.wazuh_translator.WazuhTranslator is authoritative
+  # (`--scanner wazuh` picks it up first); these YAML entries are the
+  # universal fallback used when the hard-coded route is unavailable.
   wazuh:
     formats:
-      - name: "wazuh_json"
+      # Wazuh Indexer (OpenSearch) export — 4.8+ (default in modern deployments)
+      - name: "wazuh_indexer_json"
+        file_patterns: ["*.json", "*wazuh*.json"]
+        format_type: "json"
+        asset_type: "INFRA"
+        detection:
+          json_keys: ["hits", "_shards", "took"]
+          required_keys: ["hits", "_shards"]
+        field_mappings:
+          asset:
+            hostname: "hits.hits[0]._source.agent.name"
+            ip: "hits.hits[0]._source.host.ip"
+            operatingSystem: "hits.hits[0]._source.host.os.full"
+            origin: "wazuh-indexer"
+          vulnerability:
+            name:          "hits.hits[]._source.vulnerability.id"
+            description:   "hits.hits[]._source.vulnerability.description"
+            remedy:        "hits.hits[]._source.vulnerability.scanner.condition"
+            severity:      "hits.hits[]._source.vulnerability.severity"
+            location:      "hits.hits[]._source.package.name"
+            reference_ids: "hits.hits[]._source.vulnerability.id"
+        severity_mapping:
+          "Critical": "10.0"
+          "High": "8.0"
+          "Medium": "5.0"
+          "Low": "2.0"
+          "Negligible": "1.0"
+
+      # Wazuh Manager REST API response — legacy (pre-4.8)
+      - name: "wazuh_manager_api_json"
         file_patterns: ["*.json", "*wazuh*.json"]
         format_type: "json"
         asset_type: "INFRA"
@@ -5769,7 +5807,7 @@ scanners:
           asset:
             ip: "ip_address"
             hostname: "hostname"
-            origin: "wazuh"
+            origin: "wazuh-manager-api"
           vulnerability:
             name: "data.affected_items[].vuln"
             description: "data.affected_items[].description"
