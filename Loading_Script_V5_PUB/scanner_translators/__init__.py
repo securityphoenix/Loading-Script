@@ -42,6 +42,7 @@ from .trivy_operator_translator import TrivyOperatorTranslator
 from .trivy_translator import TrivyTranslator
 from .trufflehog_translator import TruffleHogTranslator
 from .veracode_sca_translator import VeracodeSCACSVTranslator
+from .wazuh_translator import WazuhTranslator
 from .wiz_translator import WizTranslator
 
 __all__ = [
@@ -90,5 +91,6 @@ __all__ = [
     "TrivyTranslator",
     "TruffleHogTranslator",
     "VeracodeSCACSVTranslator",
+    "WazuhTranslator",
     "WizTranslator",
 ]

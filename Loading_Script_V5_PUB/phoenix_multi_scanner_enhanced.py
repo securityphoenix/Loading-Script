@@ -284,13 +284,14 @@ class EnhancedMultiScannerImportManager:
                 SolarAppScreenerCSVTranslator # 🆕
             )
             
-            # Infrastructure Scanners (5)
+            # Infrastructure Scanners (6)
             from scanner_translators import (
                 QualysTranslator,             # Consolidated 4→1 🆕
                 TenableTranslator,            # Consolidated 2→1 🆕
                 KubeauditTranslator,          # 🆕
                 MSDefenderTranslator,         # 🆕
-                DSOPTranslator                # 🆕 (duplicate in Build for flexibility)
+                DSOPTranslator,               # 🆕 (duplicate in Build for flexibility)
+                WazuhTranslator,              # Wazuh Indexer (4.8+) + legacy Manager API 🆕
             )
             
             # Additional Format Handlers
@@ -368,6 +369,7 @@ class EnhancedMultiScannerImportManager:
             self.scanner_configs['sysdig_csv'] = ScannerConfig('Sysdig', 'CONTAINER')
             self.scanner_configs['solar_csv'] = ScannerConfig('Solar appScreener', 'WEB')
             self.scanner_configs['ms_defender'] = ScannerConfig('Microsoft Defender', 'INFRA')
+            self.scanner_configs['wazuh'] = ScannerConfig('Wazuh', 'INFRA')
             self.scanner_configs['ort'] = ScannerConfig('OSS Review Toolkit', 'BUILD')
             self.scanner_configs['gitlab_secret'] = ScannerConfig('GitLab Secret Detection', 'CODE')
             self.scanner_configs['testssl'] = ScannerConfig('TestSSL', 'WEB')
@@ -444,7 +446,8 @@ class EnhancedMultiScannerImportManager:
                 BugCrowdCSVTranslator(self.scanner_configs.get('bugcrowd_csv', {}), tag_config),     # 🆕
                 SolarAppScreenerCSVTranslator(self.scanner_configs.get('solar_csv', {}), tag_config), # 🆕
                 
-                # INFRASTRUCTURE SCANNERS (5)
+                # INFRASTRUCTURE SCANNERS (6)
+                WazuhTranslator(self.scanner_configs.get('wazuh', {}), tag_config),                  # Wazuh Indexer 4.8+ + legacy Manager API 🆕
                 QualysTranslator(self.scanner_configs.get('qualys', {}), tag_config),                # 4→1 🆕
                 TenableTranslator(self.scanner_configs.get('tenable', {}), tag_config),              # 2→1 🆕
                 KubeauditTranslator(self.scanner_configs.get('kubeaudit', {}), tag_config),          # 🆕
@@ -547,6 +550,9 @@ class EnhancedMultiScannerImportManager:
             'sysdig_reports': 'SysdigCSVTranslator',
             'solar_appscreener': 'SolarAppScreenerCSVTranslator',
             'ms_defender': 'MSDefenderTranslator',
+            'wazuh': 'WazuhTranslator',
+            'wazuh_indexer': 'WazuhTranslator',
+            'wazuh_manager': 'WazuhTranslator',
             'ort': 'ORTTranslator',
             'gitlab_secret_detection_report': 'GitLabSecretDetectionTranslator',
             'testssl': 'TestSSLTranslator',
