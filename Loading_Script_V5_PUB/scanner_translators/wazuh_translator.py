@@ -24,10 +24,34 @@ Asset Type: INFRA
 
 import json
 import logging
+import re
 from typing import Any, Dict, List, Optional
 
 from phoenix_import_refactored import AssetData, VulnerabilityData
 from .base_translator import ScannerTranslator
+
+
+# Phoenix's import endpoint expects date-times in bare ISO-8601 without a
+# trailing "Z" or ±HH:MM offset (e.g. "2024-11-12T10:15:30"). Wazuh emits
+# timestamps with "Z" ("2026-04-10T16:16:33Z") which the API rejects with
+# 400 "Invalid date format". Strip the timezone suffix defensively.
+_TZ_SUFFIX_RE = re.compile(r"(Z|[+-]\d{2}:?\d{2})$")
+
+
+def _normalize_iso_datetime(value: Any) -> Optional[str]:
+    if not value:
+        return None
+    s = str(value).strip()
+    if not s:
+        return None
+    s = _TZ_SUFFIX_RE.sub("", s)
+    # Also strip fractional seconds if present ("...:33.689" → "...:33").
+    if "." in s:
+        head, _, tail = s.partition(".")
+        # Only drop the fractional part if it looks numeric.
+        if tail and tail[0].isdigit():
+            s = head
+    return s
 
 logger = logging.getLogger(__name__)
 
@@ -229,7 +253,9 @@ class WazuhTranslator(ScannerTranslator):
             "location": location,
             "reference_ids": reference_ids,
             "cwes": self.extract_cwes(description),
-            "published_date_time": vuln.get("published_at") or vuln.get("detected_at"),
+            "published_date_time": _normalize_iso_datetime(
+                vuln.get("published_at") or vuln.get("detected_at")
+            ),
             "details": details,
         }
         return finding
@@ -282,7 +308,9 @@ class WazuhTranslator(ScannerTranslator):
                 "location": location,
                 "reference_ids": [cve] if cve else [],
                 "cwes": self.extract_cwes(description),
-                "published_date_time": item.get("published") or item.get("detected_at"),
+                "published_date_time": _normalize_iso_datetime(
+                    item.get("published") or item.get("detected_at")
+                ),
                 "details": {k: v for k, v in item.items() if k not in {
                     "cve", "vuln", "name", "description", "severity", "fix",
                     "package", "location", "published", "detected_at",
@@ -330,7 +358,6 @@ class WazuhTranslator(ScannerTranslator):
                 attributes=attributes,
                 tags=filtered_tags,
             )
-
             for f in bucket["findings"]:
                 asset.findings.append(VulnerabilityData(**f).__dict__)
 
