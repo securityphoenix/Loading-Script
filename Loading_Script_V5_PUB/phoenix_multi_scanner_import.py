@@ -46,6 +46,7 @@ from phoenix_import_refactored import (
 
 # Import the new universal scanner system
 from scanner_field_mapper import FieldMapper, ScannerFormatDetector, UniversalScannerTranslator
+from grype_digest_utils import resolve_image_digest_from_grype_target
 
 # Use the enhanced logging from the refactored tool
 logger = logging.getLogger(__name__)
@@ -95,19 +96,19 @@ class ScannerTranslator(ABC):
         target_info: Any,
         label_to_attribute: Optional[Dict[str, str]] = None,
     ) -> tuple:
-        """Split OCI image labels into Phoenix asset attributes and tags.
+        """Map OCI image labels into Phoenix asset attributes and tags.
 
-        Labels whose keys appear in *label_to_attribute* are placed in the
-        returned attributes dict (with the mapped camelCase key).
-        All remaining non-empty labels become Phoenix tag dicts.
+        All non-empty labels become Phoenix tag dicts (verbatim key/value).
+        Labels whose keys appear in *label_to_attribute* are also placed in
+        the returned attributes dict (with the mapped camelCase key).
 
         Returns:
             (label_attributes, label_tags)
         """
         if label_to_attribute is None:
             label_to_attribute = {
-                "org.opencontainers.image.base.digest": "imageDigest",
-                "org.opencontainers.image.base.name":   "imageName",
+                "org.opencontainers.image.base.digest": "baseImageDigest",
+                "org.opencontainers.image.base.name":   "baseImageName",
             }
 
         label_tags: List[Dict[str, str]] = []
@@ -120,10 +121,9 @@ class ScannerTranslator(ABC):
                 value_str = str(v).strip()
                 if not value_str:
                     continue
+                label_tags.append({"key": str(k), "value": value_str})
                 if k in label_to_attribute:
                     label_attributes[label_to_attribute[k]] = value_str
-                else:
-                    label_tags.append({"key": str(k), "value": value_str})
             logger.info(
                 "OCI labels: %d -> attributes, %d -> tags",
                 len(label_attributes), len(label_tags),
@@ -373,6 +373,9 @@ class AnchoreGrypeTranslator(ScannerTranslator):
             'repository': image_name,
             **label_attributes,
         }
+        image_digest = resolve_image_digest_from_grype_target(target_info)
+        if image_digest:
+            asset_attributes['imageDigest'] = image_digest
 
         asset = AssetData(
             asset_type="CONTAINER",
