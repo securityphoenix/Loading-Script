@@ -21,7 +21,7 @@ def resolve_image_digest_from_grype_target(target_info: Any) -> Optional[str]:
 
     Selection rules:
     - One repoDigest  -> use it
-    - Multiple        -> exact match with userInput, else first entry
+    - Multiple        -> exact match with userInput, else no imageDigest
     - None / empty    -> no imageDigest
     """
     if not isinstance(target_info, dict):
@@ -50,6 +50,8 @@ def resolve_image_digest_from_grype_target(target_info: Any) -> Optional[str]:
     else:
         user_input = str(target_info.get("userInput") or "").strip()
         matched = next((digest for digest in repo_digests if digest == user_input), None)
-        selected = matched if matched else repo_digests[0]
+        if not matched:
+            return None
+        selected = matched
 
     return normalize_image_digest(selected)

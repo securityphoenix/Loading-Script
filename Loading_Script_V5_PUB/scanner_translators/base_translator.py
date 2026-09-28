@@ -144,19 +144,19 @@ class ScannerTranslator(ABC):
         label_to_attribute: Optional[Dict[str, str]] = None,
         label_value_transforms: Optional[Dict[str, Callable[[str], str]]] = None,
     ) -> tuple:
-        """Split OCI image labels into Phoenix asset attributes and tags.
+        """Map OCI image labels into Phoenix asset attributes and tags.
 
-        Labels whose keys appear in *label_to_attribute* are placed in the
-        returned attributes dict (with the mapped camelCase key).
-        All remaining non-empty labels become Phoenix tag dicts.
+        All non-empty labels become Phoenix tag dicts (verbatim key/value).
+        Labels whose keys appear in *label_to_attribute* are also placed in
+        the returned attributes dict (with the mapped camelCase key).
 
         Returns:
             (label_attributes, label_tags)
         """
         if label_to_attribute is None:
             label_to_attribute = {
-                "org.opencontainers.image.base.digest": "imageDigest",
-                "org.opencontainers.image.base.name":   "imageName",
+                "org.opencontainers.image.base.digest": "baseImageDigest",
+                "org.opencontainers.image.base.name":   "baseImageName",
             }
 
         label_tags: List[Dict[str, str]] = []
@@ -173,10 +173,9 @@ class ScannerTranslator(ABC):
                     value_str = label_value_transforms[k](value_str)
                     if not value_str:
                         continue
+                label_tags.append({"key": str(k), "value": value_str})
                 if k in label_to_attribute:
                     label_attributes[label_to_attribute[k]] = value_str
-                else:
-                    label_tags.append({"key": str(k), "value": value_str})
             logger.info(
                 "OCI labels: %d -> attributes, %d -> tags",
                 len(label_attributes), len(label_tags),
