@@ -62,17 +62,14 @@ class TestResolveImageDigestFromGrypeTarget(unittest.TestCase):
             "sha256:bbb",
         )
 
-    def test_multiple_repo_digests_tag_user_input_uses_first(self):
+    def test_multiple_repo_digests_tag_user_input_does_not_guess(self):
         digest_a = "registry.example.com/app@sha256:aaa"
         digest_b = "registry.example.com/app@sha256:bbb"
         target = {
             "userInput": "registry.example.com/app:tag",
             "repoDigests": [digest_a, digest_b],
         }
-        self.assertEqual(
-            resolve_image_digest_from_grype_target(target),
-            "sha256:aaa",
-        )
+        self.assertIsNone(resolve_image_digest_from_grype_target(target))
 
     def test_missing_repo_digests_returns_none(self):
         self.assertIsNone(resolve_image_digest_from_grype_target({}))
