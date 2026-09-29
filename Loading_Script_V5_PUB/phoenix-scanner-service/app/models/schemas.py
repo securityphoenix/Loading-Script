@@ -84,7 +84,7 @@ class ScanUploadRequest(BaseModel):
     fix_data: bool = Field(default=True, description="Automatically fix data issues")
     anonymize: bool = Field(default=False, description="Anonymize sensitive data")
     just_tags: bool = Field(default=False, description="Only add tags, do not import")
-    remap_oci_labels: bool = Field(default=False, description="Enable the Grype new_authors_key OCI label remap")
+    remap_oci_labels: bool = Field(default=False, description="Enable the new_authors_key label remap (Grype OCI labels, TruffleHog phoenix_tags)")
     create_empty_assets: bool = Field(default=False, description="Zero vulnerability risk (testing mode)")
     create_inventory_assets: bool = Field(default=False, description="Create assets with zero risk if no vulnerabilities")
     

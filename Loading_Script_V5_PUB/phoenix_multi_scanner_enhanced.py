@@ -620,7 +620,7 @@ class EnhancedMultiScannerImportManager:
         return None
     
     def _apply_oci_label_remap_to_translator(self, translator, remap_oci_labels: bool) -> None:
-        """Enable Grype OCI label remaps on the active translator."""
+        """Enable the OCI label remap on the active translator (Grype or TruffleHog)."""
         if not remap_oci_labels:
             return
         from client_extensions.oci_label_remap.grype_oci_tags import apply_oci_label_remap_to_grype_translator
@@ -689,7 +689,29 @@ class EnhancedMultiScannerImportManager:
             
             # Step 3: Parse file to assets (pass translator object directly and asset_name)
             self._apply_oci_label_remap_to_translator(translator, remap_oci_labels)
-            assets = self._parse_file_to_assets(processed_file_path, translator, asset_type, asset_name)
+            from scanner_translators.trufflehog_translator import (
+                TruffleHogEmptyScan, TruffleHogTranslator, holds_trufflehog_secrets,
+            )
+            if not isinstance(translator, TruffleHogTranslator) and holds_trufflehog_secrets(processed_file_path):
+                return {
+                    'success': False,
+                    'error': ('File holds TruffleHog records but was not read by the TruffleHog translator: '
+                              'use scanner type trufflehog, or check the file format'),
+                    'file_path': file_path,
+                }
+            try:
+                assets = self._parse_file_to_assets(processed_file_path, translator, asset_type, asset_name)
+            except TruffleHogEmptyScan:
+                logger.info("TruffleHog Jenkins scan completed with zero findings")
+                return {
+                    'success': True,
+                    'file_path': file_path,
+                    'scanner_type': detected_scanner,
+                    'assessment_name': assessment_name,
+                    'assets_imported': 0,
+                    'vulnerabilities_imported': 0,
+                    'empty_scan': True,
+                }
             
             # OPTION 3: Lenient parsing with fallback asset creation
             if not assets:
@@ -886,7 +908,8 @@ class EnhancedMultiScannerImportManager:
         
         # Check if we received a translator object directly
         from scanner_translators.base_translator import ScannerTranslator
-        if isinstance(translator_or_name, ScannerTranslator):
+        from scanner_translators.trufflehog_translator import TruffleHogTranslator
+        if isinstance(translator_or_name, (ScannerTranslator, TruffleHogTranslator)):
             # Use the provided translator directly
             translator = translator_or_name
             logger.debug(f"Using provided translator: {translator.__class__.__name__}")
@@ -1187,7 +1210,7 @@ Examples:
     parser.add_argument('--import-csv-force', action='store_true',
                        help='Force direct CSV upload to Phoenix (batched in 5MB chunks) instead of JSON conversion. Only for Phoenix native CSV format.')
     parser.add_argument('--remap-oci-labels', action='store_true',
-                       help='Enable Grype OCI label remap for org.opencontainers.image.new_authors_key (HRDB-<id> -> <uuid>:<id>)')
+                       help='Enable the org.opencontainers.image.new_authors_key remap (HRDB-<id> -> <uuid>:<id>) for Grype OCI labels and TruffleHog phoenix_tags')
     
     # Enhanced options
     parser.add_argument('--enable-batching', action='store_true', default=True,

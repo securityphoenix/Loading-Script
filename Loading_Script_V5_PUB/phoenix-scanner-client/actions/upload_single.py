@@ -61,7 +61,7 @@ Examples:
     parser.add_argument('--no-batching', action='store_true', help='Disable intelligent batching')
     parser.add_argument('--no-fix-data', action='store_true', help='Disable automatic data fixing')
     parser.add_argument('--remap-oci-labels', action='store_true',
-                       help='Enable the Grype new_authors_key OCI label remap')
+                       help='Enable the new_authors_key label remap (Grype OCI labels, TruffleHog phoenix_tags)')
     parser.add_argument('--webhook-url', help='Webhook URL for status updates')
     
     # Behavior options

@@ -60,7 +60,7 @@ Examples:
     parser.add_argument('--timeout', type=int, default=3600, help='Job timeout in seconds')
     parser.add_argument('--delay', type=int, default=0, help='Delay between batches in seconds')
     parser.add_argument('--remap-oci-labels', action='store_true',
-                       help='Enable the Grype new_authors_key OCI label remap')
+                       help='Enable the new_authors_key label remap (Grype OCI labels, TruffleHog phoenix_tags)')
     
     # Output options
     parser.add_argument('--report', help='Save report to file')
