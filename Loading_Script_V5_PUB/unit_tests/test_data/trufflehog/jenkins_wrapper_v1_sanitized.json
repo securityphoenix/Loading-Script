@@ -1,0 +1,91 @@
+{
+  "schema_version": "1.0",
+  "scan": {
+    "tool": "trufflehog",
+    "tool_version": "v3.97.4",
+    "source": "jenkins",
+    "target": "https://jenkins.example.invalid",
+    "jenkins_version": "2.0",
+    "only_verified": false,
+    "excluded_detectors": [
+      "Generic"
+    ],
+    "raw_secrets_redacted": false,
+    "started_at": "2026-01-01T00:00:00Z",
+    "finished_at": "2026-01-01T00:01:00Z",
+    "duration_seconds": 60.0,
+    "trufflehog_exit_code": 0
+  },
+  "ci": {
+    "project_path": "security/example-jenkins-scanner",
+    "pipeline_url": "https://git.example.invalid/security/example-jenkins-scanner/pipelines/1",
+    "environment": "test"
+  },
+  "summary": {
+    "total_findings": 2,
+    "verified_findings": 0,
+    "unverified_findings": 2,
+    "unparsable_output_lines": 0,
+    "detectors": {
+      "ExampleDetector": 2
+    }
+  },
+  "findings": [
+    {
+      "SourceMetadata": {
+        "Data": {
+          "Jenkins": {
+            "project_name": "deploy-example-service",
+            "build_number": 559,
+            "link": "https://jenkins.example.invalid/job/Example_Team/job/deploy-example-service/559/consoleText"
+          }
+        }
+      },
+      "SourceID": 1,
+      "SourceType": 1,
+      "SourceName": "jenkins",
+      "DetectorType": 990,
+      "DetectorName": "ExampleDetector",
+      "DetectorDescription": "Synthetic detector used by a sanitized test fixture",
+      "DecoderName": "PLAIN",
+      "Verified": false,
+      "VerificationFromCache": false,
+      "Raw": "MUST_NOT_USE_RAW",
+      "RawV2": "",
+      "Redacted": "",
+      "ExtraData": null,
+      "StructuredData": null,
+      "SecretParts": {
+        "key": "MUST_NOT_USE_SECRET_PARTS"
+      }
+    },
+    {
+      "SourceMetadata": {
+        "Data": {
+          "Jenkins": {
+            "project_name": "deploy-example-service",
+            "build_number": 560,
+            "link": "https://jenkins.example.invalid/job/Example_Team/job/deploy-example-service/560/consoleText"
+          }
+        }
+      },
+      "SourceID": 1,
+      "SourceType": 1,
+      "SourceName": "jenkins",
+      "DetectorType": 990,
+      "DetectorName": "ExampleDetector",
+      "DetectorDescription": "Synthetic detector used by a sanitized test fixture",
+      "DecoderName": "PLAIN",
+      "Verified": false,
+      "VerificationFromCache": false,
+      "Raw": "MUST_NOT_USE_RAW",
+      "RawV2": "",
+      "Redacted": "",
+      "ExtraData": null,
+      "StructuredData": null,
+      "SecretParts": {
+        "key": "MUST_NOT_USE_SECRET_PARTS"
+      }
+    }
+  ]
+}

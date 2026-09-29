@@ -38,7 +38,7 @@ async def upload_scan_file(
     fix_data: bool = Form(default=True, description="Fix data issues"),
     anonymize: bool = Form(default=False, description="Anonymize data"),
     just_tags: bool = Form(default=False, description="Only process tags"),
-    remap_oci_labels: bool = Form(default=False, description="Enable the Grype new_authors_key OCI label remap"),
+    remap_oci_labels: bool = Form(default=False, description="Enable the new_authors_key label remap (Grype OCI labels, TruffleHog phoenix_tags)"),
     create_empty_assets: bool = Form(default=False, description="Create empty assets"),
     create_inventory_assets: bool = Form(default=False, description="Create inventory assets"),
     max_batch_size: Optional[int] = Form(None, description="Max batch size"),

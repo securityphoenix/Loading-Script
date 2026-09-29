@@ -127,7 +127,7 @@ class PhoenixScannerClient:
             import_type: Import type (new, merge, delta)
             enable_batching: Enable intelligent batching
             fix_data: Automatically fix data issues
-            remap_oci_labels: Enable the Grype new_authors_key OCI label remap
+            remap_oci_labels: Enable the new_authors_key label remap (Grype OCI labels, TruffleHog phoenix_tags)
             webhook_url: Webhook URL for status updates
             **kwargs: Additional parameters
         

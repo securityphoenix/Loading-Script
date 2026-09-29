@@ -44,10 +44,15 @@ def build_label_value_transforms() -> Dict[str, Callable[[str], str]]:
 
 
 def apply_oci_label_remap_to_grype_translator(translator) -> None:
-    """Attach the OCI label value remap to a GrypeTranslator instance."""
-    if translator.__class__.__name__ != "GrypeTranslator":
+    """Attach the OCI label value remap to a GrypeTranslator instance.
+
+    Also attached to TruffleHogTranslator: each Jenkins TruffleHog record carries the owning team as
+    ``"phoenix_tags": {"org.opencontainers.image.new_authors_key": "<value>"}``, and that value is
+    transformed exactly as for Grype image labels.
+    """
+    if translator.__class__.__name__ not in ("GrypeTranslator", "TruffleHogTranslator"):
         logger.warning(
-            "--remap-oci-labels ignored: translator %s is not GrypeTranslator",
+            "--remap-oci-labels ignored: translator %s is not GrypeTranslator or TruffleHogTranslator",
             translator.__class__.__name__,
         )
         return
