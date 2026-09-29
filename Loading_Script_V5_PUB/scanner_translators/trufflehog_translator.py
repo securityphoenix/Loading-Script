@@ -363,10 +363,20 @@ class TruffleHogTranslator(ScannerTranslator):
                     if vuln:
                         secrets.append(vuln)
 
+            assets = []
             if jenkins_records:
-                return self._jenkins_assets(jenkins_records)
+                try:
+                    assets = self._jenkins_assets(jenkins_records)
+                except (TruffleHogJenkinsError, TruffleHogEmptyScan):
+                    raise
+                except Exception as e:
+                    raise TruffleHogJenkinsError(
+                        f'Jenkins records could not be parsed: {type(e).__name__}'
+                    ) from e
             
             if not secrets:
+                if assets:
+                    return assets
                 logger.info("No secrets found in TruffleHog NDJSON")
                 return []
             
@@ -386,7 +396,7 @@ class TruffleHogTranslator(ScannerTranslator):
             for vuln in secrets:
                 asset.findings.append(vuln)
             
-            assets = [self.ensure_asset_has_findings(asset)]
+            assets.append(self.ensure_asset_has_findings(asset))
             
             logger.info(f"Parsed {len(secrets)} secrets from TruffleHog {version} NDJSON")
             return assets

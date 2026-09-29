@@ -353,22 +353,28 @@ class TestTruffleHogJenkins(unittest.TestCase):
         self.assertFalse(result['success'])
         manager._create_fallback_asset.assert_not_called()
 
-    def test_malformed_one_line_wrapper_fails_closed_like_the_pretty_one(self):
-        # urlsplit raises ValueError on this link; the one-line route used to report an empty success
+    def test_malformed_jenkins_input_fails_closed_on_every_route(self):
+        # urlsplit raises ValueError on this link; the one-line wrapper and native NDJSON routes
+        # used to report an empty success with a placeholder asset
         wrapper = copy.deepcopy(self.wrapper)
         wrapper['findings'] = [self.record(link='https://[::1/job/x/5/consoleText')]
+        native = Path(self.temp.name) / 'native.json'
+        native.write_text(json.dumps(wrapper['findings'][0]) + '\n', encoding='utf-8')
+        routes = {
+            'pretty wrapper': (lambda: self.write_wrapper(wrapper, indent=2), 'Jenkins wrapper could not be parsed'),
+            'one-line wrapper': (lambda: self.write_wrapper(wrapper, indent=None), 'Jenkins wrapper could not be parsed'),
+            'native NDJSON': (lambda: str(native), 'Jenkins records could not be parsed'),
+        }
         manager = self.manager()
         manager._create_fallback_asset = Mock(side_effect=AssertionError('unexpected fallback'))
-        errors = []
-        for indent in (2, None):
-            with self.subTest(indent=indent):
-                result = manager.process_scanner_file_enhanced(
-                    self.write_wrapper(wrapper, indent=indent), scanner_type='trufflehog',
-                    assessment_name='fixed', fix_data=False
-                )
-                self.assertFalse(result['success'])
-                errors.append(result.get('error'))
-        self.assertEqual(errors, ['Jenkins wrapper could not be parsed: ValueError'] * 2)
+        for route, (path, error) in routes.items():
+            for scanner in (None, 'trufflehog'):
+                with self.subTest(route=route, scanner=scanner):
+                    result = manager.process_scanner_file_enhanced(
+                        path(), scanner_type=scanner, assessment_name='fixed', fix_data=False
+                    )
+                    self.assertFalse(result['success'])
+                    self.assertEqual(result.get('error'), f'{error}: ValueError')
         manager._create_fallback_asset.assert_not_called()
         manager.enhanced_importer.import_assets_with_batching.assert_not_called()
 
@@ -454,6 +460,35 @@ class TestTruffleHogJenkins(unittest.TestCase):
         wrapped = self.translator.parse_file(self.write_wrapper())
         self.assertEqual([asset.attributes for asset in native], [asset.attributes for asset in wrapped])
         self.assertEqual([asset.findings for asset in native], [asset.findings for asset in wrapped])
+
+    def test_mixed_jenkins_and_native_ndjson_imports_both_asset_types(self):
+        git = {
+            'SourceMetadata': {'Data': {'Git': {
+                'file': 'safe/path', 'commit': 'abcdef12', 'repository': 'repo',
+            }}},
+            'DetectorType': 990, 'DetectorName': 'GitDetector', 'Redacted': '[redacted]',
+        }
+        v2 = {
+            'branch': 'main', 'commit': 'abc', 'reason': 'High Entropy',
+            'commitHash': 'abcdef12', 'path': 'safe/other',
+        }
+        records = [git, self.wrapper['findings'][0], v2]
+        path = Path(self.temp.name) / 'mixed.json'
+        path.write_text(''.join(json.dumps(record) + '\n' for record in records), encoding='utf-8')
+
+        manager = self.manager()
+        result = manager.process_scanner_file_enhanced(
+            str(path), scanner_type='trufflehog', assessment_name='fixed', fix_data=False
+        )
+        self.assertTrue(result['success'])
+        assets = manager.enhanced_importer.import_assets_with_batching.call_args.args[0]
+        self.assertEqual(len(assets), 2)
+        self.assertEqual(assets[0].attributes['repository'], JOB_URL)
+        self.assertEqual([finding['name'] for finding in assets[0].findings],
+                         ['ExampleDetector secret in Jenkins job Example_Team/deploy-example-service'])
+        self.assertEqual([finding['name'] for finding in assets[1].findings],
+                         ['GitDetector: Secret Found', 'High Entropy'])
+        self.assertNotIn('MUST_NOT_USE_', json.dumps(assets, default=lambda asset: asset.__dict__))
 
     def test_no_trufflehog_shape_sends_a_secret_through_the_real_manager(self):
         # The committed loader sent the wrapper to the YAML fallback, which copied Raw into the
