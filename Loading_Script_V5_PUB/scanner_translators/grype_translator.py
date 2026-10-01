@@ -229,7 +229,7 @@ class GrypeTranslator(ScannerTranslator):
         vuln_data = _as_dict(match.get("vulnerability"))
         artifact_data = _as_dict(match.get("artifact"))
 
-        vuln_id = (vuln_data.get("id") or "").strip()
+        vuln_id = str(vuln_data.get("id") or "").strip()
         if not vuln_id:
             return None
 
