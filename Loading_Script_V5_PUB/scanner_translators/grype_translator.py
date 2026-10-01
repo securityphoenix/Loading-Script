@@ -41,14 +41,57 @@ from .base_translator import ScannerTranslator, ScannerConfig
 logger = logging.getLogger(__name__)
 
 
-def build_packages_from_component(component_data: Dict[str, Any]) -> List[Dict[str, str]]:
+def _as_dict(value: Any) -> Dict[str, Any]:
+    return value if isinstance(value, dict) else {}
+
+
+def _as_list(value: Any) -> List[Any]:
+    return value if isinstance(value, list) else []
+
+
+def normalize_fix_versions(versions: Any) -> Optional[List[str]]:
+    """Normalize fix version(s) to a deduped list for Phoenix packages.fixVersions."""
+    if versions is None:
+        return None
+
+    candidates: List[str] = []
+    if isinstance(versions, str):
+        text = versions.strip()
+        if text:
+            candidates.append(text)
+    elif isinstance(versions, (list, tuple, set)):
+        for value in versions:
+            text = str(value).strip() if value is not None else ""
+            if text:
+                candidates.append(text)
+    else:
+        text = str(versions).strip()
+        if text:
+            candidates.append(text)
+
+    if not candidates:
+        return None
+
+    deduped: List[str] = []
+    seen: set = set()
+    for item in candidates:
+        if item not in seen:
+            seen.add(item)
+            deduped.append(item)
+    return deduped
+
+
+def build_packages_from_component(
+    component_data: Dict[str, Any],
+    fix_versions: Optional[List[str]] = None,
+) -> List[Dict[str, Any]]:
     """Build Phoenix finding.packages from a component or Grype artifact dict."""
     name = (component_data.get("name") or "").strip()
     version = (component_data.get("version") or "").strip()
     if not name or not version:
         return []
 
-    pkg: Dict[str, str] = {"name": name, "version": version}
+    pkg: Dict[str, Any] = {"name": name, "version": version}
 
     cpe = component_data.get("cpe")
     if isinstance(cpe, str) and cpe.strip():
@@ -60,12 +103,19 @@ def build_packages_from_component(component_data: Dict[str, Any]) -> List[Dict[s
             if isinstance(first, str) and first.strip():
                 pkg["cpe"] = first.strip()
 
+    normalized_fix_versions = normalize_fix_versions(fix_versions)
+    if normalized_fix_versions:
+        pkg["fixVersions"] = normalized_fix_versions
+
     return [pkg]
 
 
-def build_packages_from_artifact(artifact_data: Dict[str, Any]) -> List[Dict[str, str]]:
+def build_packages_from_artifact(
+    artifact_data: Dict[str, Any],
+    fix_versions: Optional[List[str]] = None,
+) -> List[Dict[str, Any]]:
     """Build Phoenix finding.packages from a Grype match artifact."""
-    return build_packages_from_component(artifact_data)
+    return build_packages_from_component(artifact_data, fix_versions=fix_versions)
 
 
 def collect_grype_reference_ids(vuln_data: Dict[str, Any], match: Dict[str, Any]) -> List[str]:
@@ -151,7 +201,7 @@ class GrypeTranslator(ScannerTranslator):
                 
                 if has_descriptor:
                     descriptor = file_content.get('descriptor', {})
-                    if isinstance(descriptor, dict) and descriptor.get('name', '').lower() == 'grype':
+                    if isinstance(descriptor, dict) and (descriptor.get('name') or '').lower() == 'grype':
                         return True
                 
                 # Check if it has matches array with Grype-style structure
@@ -171,125 +221,159 @@ class GrypeTranslator(ScannerTranslator):
             
             return False
         except Exception as e:
-            logger.debug(f"GrypeTranslator.can_handle failed: {e}")
+            logger.warning("GrypeTranslator.can_handle failed for %s: %s", file_path, e, exc_info=True)
             return False
+
+    def _finding_from_match(self, match: Dict[str, Any]) -> Optional[Dict[str, Any]]:
+        """Translate one Grype match into a Phoenix finding dict, or None if skipped."""
+        vuln_data = _as_dict(match.get("vulnerability"))
+        artifact_data = _as_dict(match.get("artifact"))
+
+        vuln_id = (vuln_data.get("id") or "").strip()
+        if not vuln_id:
+            return None
+
+        severity = vuln_data.get("severity", "Unknown")
+
+        cvss_v2_score = None
+        cvss_v3_score = None
+        for cvss in _as_list(vuln_data.get("cvss")):
+            if not isinstance(cvss, dict):
+                continue
+            version = str(cvss.get("version") or "")
+            metrics = _as_dict(cvss.get("metrics"))
+            if version.startswith("2"):
+                cvss_v2_score = metrics.get("baseScore")
+            elif version.startswith("3"):
+                cvss_v3_score = metrics.get("baseScore")
+
+        fix_info = _as_dict(vuln_data.get("fix"))
+        raw_fix_versions = fix_info.get("versions")
+        fix_versions = normalize_fix_versions(raw_fix_versions) or []
+        fix_state = fix_info.get("state", "unknown")
+        pkg_name = artifact_data.get("name") or "package"
+
+        related = match.get("relatedVulnerabilities")
+        match_for_refs = dict(match)
+        match_for_refs["relatedVulnerabilities"] = related if isinstance(related, list) else []
+
+        reference_ids = collect_grype_reference_ids(vuln_data, match_for_refs)
+        cwes = collect_grype_cwes(vuln_data, match_for_refs)
+
+        vulnerability = VulnerabilityData(
+            name=vuln_id,
+            description=vuln_data.get("description", "") or f"Vulnerability {vuln_id} found in {pkg_name}",
+            remedy=(
+                f"Update {pkg_name} to fixed version: {', '.join(fix_versions)}"
+                if fix_versions else "No fix available"
+            ),
+            severity=self.normalize_severity(severity),
+            location=f"{artifact_data.get('name', '')}@{artifact_data.get('version', '')}",
+            reference_ids=reference_ids,
+            cwes=cwes,
+            details={
+                "package_name": artifact_data.get("name", ""),
+                "package_version": artifact_data.get("version", ""),
+                "package_type": artifact_data.get("type", ""),
+                "package_language": artifact_data.get("language", ""),
+                "fix_versions": fix_versions,
+                "fix_state": fix_state,
+                "cvss_v2_score": cvss_v2_score,
+                "cvss_v3_score": cvss_v3_score,
+                "data_source": vuln_data.get("dataSource", ""),
+                "namespace": vuln_data.get("namespace", ""),
+                "urls": vuln_data.get("urls") if isinstance(vuln_data.get("urls"), list) else [],
+            },
+        )
+
+        finding = vulnerability.__dict__
+        packages = build_packages_from_artifact(artifact_data, fix_versions=fix_versions or None)
+        if packages:
+            finding["packages"] = packages
+        return finding
     
     def parse_file(self, file_path: str) -> List[AssetData]:
-        """Parse Grype scan results"""
-        logger.info(f"Parsing Anchore Grype scan file: {file_path}")
+        """Parse Grype scan results. Unexpected match errors are logged and re-raised."""
+        logger.info("Parsing Anchore Grype scan file: %s", file_path)
         
         try:
             with open(file_path, 'r') as f:
                 data = json.load(f)
         except Exception as e:
-            logger.error(f"Failed to parse Grype file: {e}")
-            raise
-        
-        assets = []
-        
-        # Extract source information
-        source = data.get('source', {})
-        source_type = source.get('type', 'unknown')
-        target_info = source.get('target', {})
-        
-        # Get image/repo name
-        if isinstance(target_info, dict):
-            image_name = target_info.get('userInput', target_info.get('imageID', 'unknown'))
-        else:
-            image_name = str(target_info) if target_info else 'unknown'
+            logger.exception("Failed to read Grype JSON %s: %s", file_path, e)
+            raise ValueError(f"Grype parse failed for {file_path}: {e}") from e
 
-        label_attributes, label_tags = self.promote_oci_labels(
-            target_info,
-            label_value_transforms=self.label_value_transforms,
-        )
+        try:
+            source = _as_dict(data.get("source"))
+            source_type = source.get("type", "unknown")
+            target_info = source.get("target", {})
 
-        # Create container asset
-        asset_attributes = {
-            'dockerfile': 'Dockerfile',
-            'origin': 'anchore-grype',
-            'repository': image_name,
-            **label_attributes,
-        }
-        image_digest = resolve_image_digest_from_grype_target(target_info)
-        if image_digest:
-            asset_attributes['imageDigest'] = image_digest
-        
-        asset = AssetData(
-            asset_type="CONTAINER",
-            attributes=asset_attributes,
-            tags=self.tag_config.get_all_tags() + [
-                {"key": "scanner", "value": "anchore-grype"},
-                {"key": "source-type", "value": source_type},
-            ] + label_tags
-        )
-        
-        # Process matches (vulnerabilities)
-        matches = data.get('matches', [])
-        for match in matches:
-            vuln_data = match.get('vulnerability', {})
-            artifact_data = match.get('artifact', {})
-            
-            # Skip if this is not a real vulnerability
-            vuln_id = vuln_data.get('id', '')
-            if not vuln_id:
-                continue
-            
-            # Get severity
-            severity = vuln_data.get('severity', 'Unknown')
-            
-            # Get CVSS scores
-            cvss_list = vuln_data.get('cvss', [])
-            cvss_v2_score = None
-            cvss_v3_score = None
-            for cvss in cvss_list:
-                version = cvss.get('version', '')
-                metrics = cvss.get('metrics', {})
-                if version.startswith('2'):
-                    cvss_v2_score = metrics.get('baseScore')
-                elif version.startswith('3'):
-                    cvss_v3_score = metrics.get('baseScore')
-            
-            # Get fix information
-            fix_info = vuln_data.get('fix', {})
-            fix_versions = fix_info.get('versions', [])
-            fix_state = fix_info.get('state', 'unknown')
+            if isinstance(target_info, dict):
+                image_name = target_info.get("userInput") or target_info.get("imageID") or "unknown"
+            else:
+                image_name = str(target_info) if target_info else "unknown"
 
-            reference_ids = collect_grype_reference_ids(vuln_data, match)
-            cwes = collect_grype_cwes(vuln_data, match)
-
-            # Create vulnerability
-            vulnerability = VulnerabilityData(
-                name=vuln_id,
-                description=vuln_data.get('description', '') or f"Vulnerability {vuln_id} found in {artifact_data.get('name', 'package')}",
-                remedy=f"Update {artifact_data.get('name', 'package')} to fixed version: {', '.join(fix_versions)}" if fix_versions else "No fix available",
-                severity=self.normalize_severity(severity),
-                location=f"{artifact_data.get('name', '')}@{artifact_data.get('version', '')}",
-                reference_ids=reference_ids,
-                cwes=cwes,
-                details={
-                    'package_name': artifact_data.get('name', ''),
-                    'package_version': artifact_data.get('version', ''),
-                    'package_type': artifact_data.get('type', ''),
-                    'package_language': artifact_data.get('language', ''),
-                    'fix_versions': fix_versions,
-                    'fix_state': fix_state,
-                    'cvss_v2_score': cvss_v2_score,
-                    'cvss_v3_score': cvss_v3_score,
-                    'data_source': vuln_data.get('dataSource', ''),
-                    'namespace': vuln_data.get('namespace', ''),
-                    'urls': vuln_data.get('urls', [])
-                }
+            label_attributes, label_tags = self.promote_oci_labels(
+                target_info,
+                label_value_transforms=self.label_value_transforms,
             )
 
-            finding = vulnerability.__dict__
-            packages = build_packages_from_artifact(artifact_data)
-            if packages:
-                finding["packages"] = packages
-            asset.findings.append(finding)
-        
-        assets.append(self.ensure_asset_has_findings(asset))
-        logger.info(f"Created {len(assets)} assets with {sum(len(a.findings) for a in assets)} vulnerabilities")
-        return assets
+            asset_attributes = {
+                "dockerfile": "Dockerfile",
+                "origin": "anchore-grype",
+                "repository": image_name,
+                **label_attributes,
+            }
+            image_digest = resolve_image_digest_from_grype_target(target_info)
+            if image_digest:
+                asset_attributes["imageDigest"] = image_digest
+
+            asset = AssetData(
+                asset_type="CONTAINER",
+                attributes=asset_attributes,
+                tags=self.tag_config.get_all_tags() + [
+                    {"key": "scanner", "value": "anchore-grype"},
+                    {"key": "source-type", "value": source_type},
+                ] + label_tags,
+            )
+
+            matches = data.get("matches")
+            if matches is None:
+                matches = []
+            if not isinstance(matches, list):
+                raise TypeError(f"'matches' is {type(matches).__name__}, expected list")
+
+            for index, match in enumerate(matches):
+                try:
+                    if not isinstance(match, dict):
+                        raise TypeError(f"match is {type(match).__name__}, expected dict")
+                    finding = self._finding_from_match(match)
+                    if finding:
+                        asset.findings.append(finding)
+                except Exception as e:
+                    vuln_id = ""
+                    if isinstance(match, dict):
+                        vuln_id = _as_dict(match.get("vulnerability")).get("id") or ""
+                    message = (
+                        f"Grype parse failed for {file_path} match[{index}] "
+                        f"id={vuln_id or '<unknown>'}: {e}"
+                    )
+                    logger.exception(message)
+                    raise ValueError(message) from e
+
+            assets = [self.ensure_asset_has_findings(asset)]
+            logger.info(
+                "Created %s assets with %s vulnerabilities from %s",
+                len(assets),
+                sum(len(a.findings) for a in assets),
+                file_path,
+            )
+            return assets
+        except ValueError:
+            raise
+        except Exception as e:
+            logger.exception("Grype parse failed for %s: %s", file_path, e)
+            raise ValueError(f"Grype parse failed for {file_path}: {e}") from e
 
 
 __all__ = [
@@ -298,4 +382,5 @@ __all__ = [
     'build_packages_from_component',
     'collect_grype_reference_ids',
     'collect_grype_cwes',
+    'normalize_fix_versions',
 ]

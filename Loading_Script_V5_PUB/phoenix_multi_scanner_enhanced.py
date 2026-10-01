@@ -50,6 +50,7 @@ class EnhancedMultiScannerImportManager:
             try:
                 self.phoenix_config, self.tag_config = self._load_configuration_safe()
                 self.config = self.phoenix_config  # For compatibility
+                self._config_import_type = self.phoenix_config.import_type  # config file value, see Step 6
                 print(f"✅ Loaded Phoenix configuration from {config_file}")
                 print(f"   API URL: {self.config.api_base_url}")
             except Exception as e:
@@ -615,7 +616,13 @@ class EnhancedMultiScannerImportManager:
                 if translator.can_handle(file_path):
                     return translator
             except Exception as e:
-                logger.debug(f"Translator {translator.__class__.__name__} failed to check file: {e}")
+                logger.warning(
+                    "Translator %s failed to check file %s: %s",
+                    translator.__class__.__name__,
+                    file_path,
+                    e,
+                    exc_info=True,
+                )
         
         return None
     
@@ -625,10 +632,17 @@ class EnhancedMultiScannerImportManager:
             return
         from client_extensions.oci_label_remap.grype_oci_tags import apply_oci_label_remap_to_grype_translator
         apply_oci_label_remap_to_grype_translator(translator)
-    
+
+    @staticmethod
+    def _grype_asset_sub_type(translator) -> Optional[str]:
+        """Grype/Anchore container imports require assessment.assetSubType=CONTAINER_IMAGE."""
+        if translator and translator.__class__.__name__ in {"GrypeTranslator", "AnchoreGrypeTranslator"}:
+            return "CONTAINER_IMAGE"
+        return None
+
     def process_scanner_file_enhanced(self, file_path: str, scanner_type: Optional[str] = None,
                                     asset_type: Optional[str] = None, assessment_name: Optional[str] = None,
-                                    import_type: str = "delta", anonymize: bool = False,
+                                    import_type: Optional[str] = None, anonymize: bool = False,
                                     just_tags: bool = False, create_empty_assets: bool = False,
                                     create_inventory_assets: bool = False, verify_import: bool = False,
                                     enable_batching: bool = True, fix_data: bool = True,
@@ -686,7 +700,17 @@ class EnhancedMultiScannerImportManager:
                         'error': f'Could not detect scanner type for {file_path}',
                         'file_path': file_path
                     }
-            
+
+            if not translator:
+                error = f"Could not resolve translator for scanner type '{scanner_type}' file {file_path}"
+                logger.error(error)
+                return {
+                    'success': False,
+                    'error': error,
+                    'file_path': file_path,
+                    'scanner_type': scanner_type,
+                }
+
             # Step 3: Parse file to assets (pass translator object directly and asset_name)
             self._apply_oci_label_remap_to_translator(translator, remap_oci_labels)
             from scanner_translators.trufflehog_translator import (
@@ -749,17 +773,47 @@ class EnhancedMultiScannerImportManager:
             if not assessment_name:
                 assessment_name = self._generate_assessment_name(file_path, detected_scanner)
             
+            # Not in Utils: honour --import-type; the payload was built from the config file's value only.
+            # Without one, the config file's value applies, also after an earlier call on this manager.
+            self.phoenix_config.import_type = import_type or self._config_import_type
+            import_type = self.phoenix_config.import_type
+
             # Step 6: Import with or without batching
+            asset_sub_type = self._grype_asset_sub_type(translator)
             if enable_batching:
                 session = self.enhanced_importer.import_assets_with_batching(
-                    assets, assessment_name, import_type, validate_data=True
+                    assets,
+                    assessment_name,
+                    import_type,
+                    validate_data=True,
+                    asset_sub_type=asset_sub_type,
                 )
                 return self._convert_session_to_result(session, file_path, detected_scanner, assessment_name)
             else:
                 # Traditional single-request import using API client
                 from phoenix_import_refactored import PhoenixAPIClient
                 api_client = PhoenixAPIClient(self.phoenix_config)
-                result = api_client.import_assets(assets, assessment_name)
+                request_id, response_data = api_client.import_assets(
+                    assets, assessment_name, asset_sub_type=asset_sub_type
+                )
+                import_failed = (
+                    isinstance(response_data, dict)
+                    and str(response_data.get('status', '')).lower() in {'error', 'failed'}
+                )
+                if import_failed or (request_id is None and response_data is None):
+                    error_msg = (
+                        response_data.get('message')
+                        if isinstance(response_data, dict)
+                        else None
+                    ) or 'Phoenix import failed without an error message'
+                    return {
+                        'success': False,
+                        'error': error_msg,
+                        'file_path': file_path,
+                        'scanner_type': detected_scanner,
+                        'assessment_name': assessment_name,
+                        'batching_used': False,
+                    }
                 return {
                     'success': True,
                     'file_path': file_path,
@@ -768,13 +822,12 @@ class EnhancedMultiScannerImportManager:
                     'assets_imported': len(assets),
                     'vulnerabilities_imported': sum(len(a.findings) for a in assets),
                     'import_type': import_type,
-                    'request_id': result.get('request_id'),
+                    'request_id': request_id,
                     'batching_used': False
                 }
             
         except Exception as e:
-            logger.error(f"❌ Enhanced processing failed for {file_path}: {e}")
-            logger.debug(traceback.format_exc())
+            logger.exception("Enhanced processing failed for %s: %s", file_path, e)
             return {
                 'success': False,
                 'error': str(e),
@@ -906,13 +959,12 @@ class EnhancedMultiScannerImportManager:
             file_path = os.path.abspath(file_path)
             logger.debug(f"Converted file path to absolute: {file_path}")
         
-        # Check if we received a translator object directly
-        from scanner_translators.base_translator import ScannerTranslator
-        from scanner_translators.trufflehog_translator import TruffleHogTranslator
-        if isinstance(translator_or_name, (ScannerTranslator, TruffleHogTranslator)):
-            # Use the provided translator directly
+        # Duck-type translators: Grype/Trivy instances can be a different ScannerTranslator
+        # class object when /parent and the image copy load the module twice.
+        if hasattr(translator_or_name, "parse_file") and hasattr(translator_or_name, "can_handle") \
+                and not isinstance(translator_or_name, (str, bytes)):
             translator = translator_or_name
-            logger.debug(f"Using provided translator: {translator.__class__.__name__}")
+            logger.info("Using provided translator: %s", translator.__class__.__name__)
         else:
             # Legacy path: translator name provided, need to find it
             scanner_type_str = str(translator_or_name).lower() if translator_or_name else ''
@@ -964,20 +1016,26 @@ class EnhancedMultiScannerImportManager:
             translator.asset_type = asset_type
             logger.info(f"🏷️ Set translator asset_type before parse: {asset_type}")
         
-        # Parse with translator-specific parameters when supported
-        if translator_class_name == 'TrivyTranslator':
-            assets = translator.parse_file(file_path, asset_type_override=asset_type)
-        elif asset_name and translator_class_name in ['PhoenixCSVTranslator', 'Rapid7CSVTranslator', 'AquaScanTranslator', 'AquaTranslator']:
-            logger.info(f"🏷️ Passing asset name override to {translator_class_name}: {asset_name}")
-            try:
-                assets = translator.parse_file(file_path, asset_name_override=asset_name)
-            except TypeError:
-                # Fallback if translator doesn't support asset_name_override parameter
-                logger.warning(f"⚠️ {translator_class_name} doesn't support asset_name_override parameter, using default name")
+        from scanner_translators.trufflehog_translator import TruffleHogEmptyScan, TruffleHogJenkinsError
+        try:
+            if translator_class_name == 'TrivyTranslator':
+                assets = translator.parse_file(file_path, asset_type_override=asset_type)
+            elif asset_name and translator_class_name in ['PhoenixCSVTranslator', 'Rapid7CSVTranslator', 'AquaScanTranslator', 'AquaTranslator']:
+                logger.info(f"🏷️ Passing asset name override to {translator_class_name}: {asset_name}")
+                try:
+                    assets = translator.parse_file(file_path, asset_name_override=asset_name)
+                except TypeError:
+                    logger.warning(f"⚠️ {translator_class_name} doesn't support asset_name_override parameter, using default name")
+                    assets = translator.parse_file(file_path)
+            else:
                 assets = translator.parse_file(file_path)
-        else:
-            assets = translator.parse_file(file_path)
-        
+        except (TruffleHogEmptyScan, TruffleHogJenkinsError):
+            # Not in Utils: keep TruffleHog's empty-scan success and its value-free error text
+            raise
+        except Exception as e:
+            logger.exception("Failed to parse %s with %s: %s", file_path, translator_class_name, e)
+            raise ValueError(f"Failed to parse {file_path} with {translator_class_name}: {e}") from e
+
         # Override asset type for non-Trivy translators (Trivy couples type + attributes internally)
         if asset_type and translator_class_name != 'TrivyTranslator':
             for asset in assets:
@@ -1065,12 +1123,14 @@ class EnhancedMultiScannerImportManager:
                 }
                 for r in failed_batches
             ]
+            from import_error_reporting import format_batch_session_error
+            result['error'] = format_batch_session_error(session)
         
         return result
     
     def process_folder_enhanced(self, folder_path: str, file_types: List[str] = None,
                               scanner_type: Optional[str] = None, asset_type: Optional[str] = None,
-                              import_type: str = "new", anonymize: bool = False,
+                              import_type: Optional[str] = None, anonymize: bool = False,
                               just_tags: bool = False, create_empty_assets: bool = False,
                               create_inventory_assets: bool = False, enable_batching: bool = True,
                               fix_data: bool = True, asset_name: Optional[str] = None,
@@ -1198,8 +1258,8 @@ Examples:
     
     # Import options
     parser.add_argument('--assessment', type=str, help='Assessment name (default: auto-generated)')
-    parser.add_argument('--import-type', choices=['new', 'merge', 'delta'], default='new',
-                       help='Import type (default: new)')
+    parser.add_argument('--import-type', choices=['new', 'merge', 'delta'], default=None,
+                       help='Import type (default: import_type from the config file, else new)')
     parser.add_argument('--anonymize', action='store_true', help='Anonymize sensitive data')
     parser.add_argument('--just-tags', action='store_true', help='Only add tags, do not import')
     parser.add_argument('--create-empty-assets', action='store_true',

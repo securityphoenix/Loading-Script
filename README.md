@@ -13,7 +13,7 @@ sanitizing publish tool. Do not edit files here by hand — see [Contributing](#
 
 | Bundle | Version | Status | Use it for |
 |---|---|---|---|
-| [`Loading_Script_V5_PUB/`](Loading_Script_V5_PUB/) | [![v5](https://img.shields.io/badge/version-5.0.0-blue)](Loading_Script_V5_PUB/CHANGELOG.md) | **Active** | Everything new. 205 scanner types, modular translators, batching, CI metadata tagging. |
+| [`Loading_Script_V5_PUB/`](Loading_Script_V5_PUB/) | [![v5](https://img.shields.io/badge/version-5.0.1-blue)](Loading_Script_V5_PUB/CHANGELOG.md) | **Active** | Everything new. 205 scanner types, modular translators, batching, CI metadata tagging. |
 | [`LEGACY_Loading_Script_V2_PUB/`](LEGACY_Loading_Script_V2_PUB/) | [![v2](https://img.shields.io/badge/version-2.0.0-lightgrey)](LEGACY_Loading_Script_V2_PUB/CHANGELOG.md) | Maintenance only | Older pipelines that already pin these scripts. |
 
 **Start with V5.** V2 gets security and compatibility fixes only.
@@ -113,13 +113,13 @@ its own `CHANGELOG.md`. Releases are git tags on this repository:
 
 | Bundle | Tag format | Latest |
 |---|---|---|
-| `Loading_Script_V5_PUB` | `loading-v5-v<VERSION>` | `loading-v5-v5.0.0` |
+| `Loading_Script_V5_PUB` | `loading-v5-v<VERSION>` | `loading-v5-v5.0.1` |
 | `LEGACY_Loading_Script_V2_PUB` | `loading-v2-v<VERSION>` | `loading-v2-v2.0.0` |
 
 To pin a version in a pipeline, check out the tag:
 
 ```bash
-git clone --depth 1 --branch loading-v5-v5.0.0 https://github.com/securityphoenix/Loading-Script.git
+git clone --depth 1 --branch loading-v5-v5.0.1 https://github.com/securityphoenix/Loading-Script.git
 ```
 
 The repository-level release log is [`CHANGELOG.md`](CHANGELOG.md).

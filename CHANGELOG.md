@@ -8,6 +8,15 @@ Repository-level release log. Each bundle also keeps its own detailed changelog:
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 Each bundle is versioned independently with [SemVer](https://semver.org/).
 
+## 2026-10-01 — `loading-v5-v5.0.1`
+
+Loading Script V5 restores the needed Utils fixes for Grype/Trivy package data,
+import error reporting, scanner-service job logs, CI examples and client dependency minimums.
+Explicit `--import-type` values now reach the API; without the flag, configuration applies.
+The CI examples' existing `delta` requests are now honored. Existing CycloneDX support is preserved.
+
+See the [V5 changelog](Loading_Script_V5_PUB/CHANGELOG.md) for details.
+
 ## 2026-09-09 — `loading-v5-v5.0.0`, `loading-v2-v2.0.0`
 
 First tracked release of the public mirror.

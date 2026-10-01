@@ -485,11 +485,11 @@ python3 phoenix_multi_scanner_enhanced.py \
 
 **Code Location:**
 ```python
-# phoenix_multi_scanner_enhanced.py, line 1032
+# phoenix_multi_scanner_enhanced.py
 parser.add_argument('--import-type', 
                    choices=['new', 'merge', 'delta'], 
-                   default='new',  # ← Default, but can override
-                   help='Import type (default: new)')
+                   default=None,  # Use the configured import type when omitted
+                   help='Import type (default: import_type from the config file, else new)')
 ```
 
 ### Solution 2: Use Different Assessments for Different Scans

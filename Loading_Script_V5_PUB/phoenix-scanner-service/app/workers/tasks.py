@@ -18,6 +18,29 @@ from app.file_cleanup import delete_upload_file
 
 logger = logging.getLogger(__name__)
 
+# Importer loggers that must land in the per-job log file (not only task.{job_id}).
+_JOB_FILE_LOGGERS = (
+    "phoenix_multi_scanner_enhanced",
+    "phoenix_import_refactored",
+    "phoenix_import_enhanced",
+    "scanner_translators",
+    "client_extensions.oci_label_remap.grype_oci_tags",
+)
+
+
+def _error_message_from_result(result: Optional[dict], fallback: str = "") -> str:
+    """Best available user-facing error; never invent 'Unknown error'."""
+    parent_dir = "/parent"
+    if parent_dir not in sys.path:
+        sys.path.insert(0, parent_dir)
+    try:
+        from import_error_reporting import error_message_from_result
+        return error_message_from_result(result, fallback=fallback)
+    except Exception:
+        if isinstance(result, dict) and result.get("error"):
+            return str(result["error"])
+        return fallback or "Import failed without an error message"
+
 
 class CallbackTask(Task):
     """Base task with callbacks for job status updates"""
@@ -27,45 +50,72 @@ class CallbackTask(Task):
         self.db = None
         self.job_id = None
         self.log_file = None
+        self._job_log_handler = None
     
+    def _attach_job_log_file(self, job_id: str) -> None:
+        log_path = job_manager.get_log_file_path(job_id)
+        log_path.parent.mkdir(parents=True, exist_ok=True)
+
+        file_handler = logging.FileHandler(log_path)
+        file_handler.setLevel(logging.INFO)
+        file_handler.setFormatter(
+            logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s')
+        )
+
+        task_logger = logging.getLogger(f"task.{job_id}")
+        task_logger.addHandler(file_handler)
+        task_logger.setLevel(logging.DEBUG)
+
+        for name in _JOB_FILE_LOGGERS:
+            importer_logger = logging.getLogger(name)
+            importer_logger.addHandler(file_handler)
+            if importer_logger.level == logging.NOTSET or importer_logger.level > logging.INFO:
+                importer_logger.setLevel(logging.INFO)
+
+        self._job_log_handler = file_handler
+        self.log_file = log_path
+
+    def _detach_job_log_file(self) -> None:
+        handler = self._job_log_handler
+        if not handler:
+            return
+        if self.job_id:
+            logging.getLogger(f"task.{self.job_id}").removeHandler(handler)
+        for name in _JOB_FILE_LOGGERS:
+            logging.getLogger(name).removeHandler(handler)
+        handler.close()
+        self._job_log_handler = None
+
     def before_start(self, task_id, args, kwargs):
         """Called before task starts"""
         self.db = SessionLocal()
         self.job_id = args[0] if args else None
         
         if self.job_id:
-            # Set up logging to file
-            log_path = job_manager.get_log_file_path(self.job_id)
-            log_path.parent.mkdir(parents=True, exist_ok=True)
-            
-            file_handler = logging.FileHandler(log_path)
-            file_handler.setLevel(logging.DEBUG)
-            file_handler.setFormatter(
-                logging.Formatter('%(asctime)s - %(levelname)s - %(message)s')
-            )
-            
-            task_logger = logging.getLogger(f"task.{self.job_id}")
-            task_logger.addHandler(file_handler)
-            task_logger.setLevel(logging.DEBUG)
-            
-            self.log_file = log_path
+            self._attach_job_log_file(self.job_id)
     
     def on_success(self, retval, task_id, args, kwargs):
         """Called when task succeeds"""
+        self._detach_job_log_file()
         if self.db:
             self.db.close()
     
     def on_failure(self, exc, task_id, args, kwargs, einfo):
-        """Called when task fails"""
+        """Called when task fails. Do not replace a more specific error already stored."""
         if self.db and self.job_id:
+            job = job_manager.get_job(self.db, self.job_id)
+            existing = (job.error_message if job else None) or ""
+            incoming = str(exc)
+            keep_existing = bool(existing) and existing != "Unknown error" and existing != incoming
             job_manager.update_job_status(
                 self.db,
                 self.job_id,
                 JobStatus.FAILED,
-                error_message=str(exc),
+                error_message=existing if keep_existing else incoming,
                 error_traceback=str(einfo)
             )
         
+        self._detach_job_log_file()
         if self.db:
             self.db.close()
 
@@ -181,9 +231,10 @@ def process_scan_file(self, job_id: str) -> Dict[str, Any]:
             
             return result
         else:
-            # Processing failed
-            error_msg = result.get('error', 'Unknown error')
+            error_msg = _error_message_from_result(result)
             task_logger.error(f"❌ Processing failed: {error_msg}")
+            if result.get("batch_errors"):
+                task_logger.error(f"   Batch errors: {result.get('batch_errors')}")
             
             job_manager.update_job_status(
                 self.db,
@@ -191,35 +242,56 @@ def process_scan_file(self, job_id: str) -> Dict[str, Any]:
                 JobStatus.FAILED,
                 error_message=error_msg,
                 progress=100.0,
-                current_step="Failed"
+                current_step="Failed",
+                assets_imported=result.get('assets_imported', 0),
+                vulnerabilities_imported=result.get('vulnerabilities_imported', 0),
+                assessment_name=result.get('assessment_name'),
+                scanner_type=result.get('scanner_type', job.scanner_type),
+                batch_summary=json.dumps(result.get('batch_summary')) if result.get('batch_summary') else None,
             )
             
-            # Send webhook notification
             if job.webhook_url:
-                _send_webhook_notification(job, result, task_logger)
+                failed_result = dict(result)
+                failed_result['error'] = error_msg
+                _send_webhook_notification(job, failed_result, task_logger)
             
             raise RuntimeError(error_msg)
     
     except Exception as e:
         task_logger.error(f"❌ Task failed with exception: {e}")
         task_logger.error(traceback.format_exc())
-        
-        # Update job status
-        job_manager.update_job_status(
-            self.db,
-            job_id,
-            JobStatus.FAILED,
-            error_message=str(e),
-            error_traceback=traceback.format_exc(),
-            progress=100.0,
-            current_step="Failed"
-        )
-        
-        # Send webhook notification
+
         job = job_manager.get_job(self.db, job_id)
-        if job and job.webhook_url:
-            _send_webhook_notification(job, {'success': False, 'error': str(e)}, task_logger)
-        
+        already_recorded = bool(
+            job
+            and job.status == JobStatus.FAILED.value
+            and job.error_message
+            and job.error_message != "Unknown error"
+        )
+        if already_recorded:
+            if not job.error_traceback:
+                job_manager.update_job_status(
+                    self.db,
+                    job_id,
+                    JobStatus.FAILED,
+                    error_message=job.error_message,
+                    error_traceback=traceback.format_exc(),
+                    batch_summary=job.batch_summary,
+                )
+        else:
+            job_manager.update_job_status(
+                self.db,
+                job_id,
+                JobStatus.FAILED,
+                error_message=str(e),
+                error_traceback=traceback.format_exc(),
+                progress=100.0,
+                current_step="Failed",
+            )
+            job = job_manager.get_job(self.db, job_id)
+            if job and job.webhook_url:
+                _send_webhook_notification(job, {'success': False, 'error': str(e)}, task_logger)
+
         raise
 
     finally:
@@ -379,7 +451,7 @@ def _send_webhook_notification(job, result: Dict[str, Any], logger):
                 "assessment_name": result.get('assessment_name'),
             })
         else:
-            payload['error'] = result.get('error', 'Unknown error')
+            payload['error'] = result.get('error') or 'Import failed without an error message'
         
         logger.info(f"📡 Sending webhook notification to {webhook_url}")
         
