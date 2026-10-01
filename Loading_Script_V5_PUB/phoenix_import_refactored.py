@@ -1101,7 +1101,12 @@ class PhoenixAPIClient:
             error_tracker.log_error(e, "Authentication", operation="get_access_token")
             return None
     
-    def import_assets(self, assets: List[AssetData], assessment_name: str) -> Tuple[Optional[str], Optional[Dict]]:
+    def import_assets(
+        self,
+        assets: List[AssetData],
+        assessment_name: str,
+        asset_sub_type: Optional[str] = None,
+    ) -> Tuple[Optional[str], Optional[Dict]]:
         """Import assets using the direct JSON API"""
         token = self.get_access_token()
         if not token:
@@ -1110,7 +1115,10 @@ class PhoenixAPIClient:
                 "Asset Import", 
                 operation="import_assets"
             )
-            return None, None
+            return None, {
+                "status": "error",
+                "message": "Phoenix authentication failed: no access token",
+            }
         
         # Convert assets to Phoenix format
         phoenix_assets = []
@@ -1132,7 +1140,9 @@ class PhoenixAPIClient:
                 from finding_reference_normalizer import normalize_finding_reference_fields
                 phoenix_finding = normalize_finding_reference_fields(phoenix_finding)
                 if 'published_date_time' in phoenix_finding:
-                    phoenix_finding['publishedDateTime'] = phoenix_finding.pop('published_date_time')
+                    published = phoenix_finding.pop('published_date_time')
+                    if published and str(published).strip():
+                        phoenix_finding['publishedDateTime'] = published
 
                 # Phoenix expects severity as a float (e.g. 5.0), not a string ("5.0").
                 # VulnerabilityData stores it as str internally; cast it here at the
@@ -1175,12 +1185,16 @@ class PhoenixAPIClient:
         )
         
         # Prepare import payload
+        assessment = {
+            "assetType": assets[0].asset_type if assets else "INFRA",
+            "name": assessment_name,
+        }
+        if asset_sub_type:
+            assessment["assetSubType"] = asset_sub_type
+
         payload = {
             "importType": self.config.import_type,
-            "assessment": {
-                "assetType": assets[0].asset_type if assets else "INFRA",
-                "name": assessment_name
-            },
+            "assessment": assessment,
             "assets": phoenix_assets
         }
         
@@ -1243,19 +1257,20 @@ class PhoenixAPIClient:
                 
                 return request_id, response_data
             else:
-                error_msg = f"Failed to import assets: {response.status_code} - {response.text}"
+                from import_error_reporting import format_phoenix_http_error
+                error_msg = format_phoenix_http_error(response.status_code, response.text)
                 logger.error(error_msg)
                 error_tracker.log_error(
                     Exception(error_msg), 
                     "Asset Import", 
                     operation="import_assets"
                 )
-                return None, None
+                return None, {"status": "error", "message": error_msg}
                 
         except Exception as e:
             logger.error(f"Error importing assets: {e}")
             error_tracker.log_error(e, "Asset Import", operation="import_assets")
-            return None, None
+            return None, {"status": "error", "message": str(e)}
     
     def wait_for_import_completion(self, request_id: str) -> Optional[Dict]:
         """Wait for import to complete"""

@@ -63,7 +63,7 @@ The generator extracts what is available from the CI platform and writes tags su
 
 ## Option A: Automated Metadata (recommended)
 
-From `Loading_Script_V5/`:
+From `Loading_Script_V5_PUB/` (`run_direct_upload.sh` also works from any other directory):
 
 ```bash
 python -m pip install -r requirements.txt

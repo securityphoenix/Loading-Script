@@ -1,6 +1,6 @@
 # Phoenix Multi-Scanner Import Tool (V5)
 
-[![Version](https://img.shields.io/badge/version-5.0.0-blue)](CHANGELOG.md)
+[![Version](https://img.shields.io/badge/version-5.0.1-blue)](CHANGELOG.md)
 [![Status](https://img.shields.io/badge/status-active-brightgreen)](CHANGELOG.md)
 
 ![Phoenix Security Loading Scripts. Scanners such as Trivy, Snyk, containers, IaC, secrets, Dependabot, AWS and SBOM produce JSON, SARIF, XML, CSV and SBOM files. The loading script ingests them, runs scanner detection and a modular translator, validates and batches, adds CI metadata, then uploads to the Phoenix platform, which emerges unified findings with asset, repository, application, environment, severity, scanner and CI metadata context. The pipeline reads scan, load, translate, normalize, enrich, Phoenix.](docs/assets/loading-script-overview.jpeg)
@@ -9,12 +9,12 @@
 
 | | |
 |---|---|
-| **Version** | `5.0.0` — see [`VERSION`](VERSION) |
+| **Version** | `5.0.1` — see [`VERSION`](VERSION) |
 | **Changelog** | [`CHANGELOG.md`](CHANGELOG.md) |
 | **Status** | Active. All new scanners and features land here. |
 | **Predecessor** | `../Loading_Script_V2` — legacy, maintenance only |
 | **Public mirror** | `Loading_Script_V5_PUB` in the public Loading-Script repo |
-| **Release tag** | `loading-v5-v5.0.0` |
+| **Release tag** | `loading-v5-v5.0.1` |
 
 > **Before you change anything in this folder:** add a `CHANGELOG.md` entry and bump
 > `VERSION`. The publish tool refuses to ship this bundle otherwise. See
@@ -177,13 +177,13 @@ before choosing.
 
 ### Import types
 
-| `--import-type` | What Phoenix does |
-|---|---|
-| `new` | Creates a new assessment. Previous findings stay where they are. |
-| `merge` | Adds to the existing assessment. Nothing is closed. |
-| `delta` | Treats this scan as the full truth. Findings missing from it get closed. |
+Supported modes are `new`, `merge` and `delta`. An explicit `--import-type` overrides
+the config file's `import_type`; without the flag, the configured value applies (fallback: `new`).
+The direct-upload wrapper and CI examples request `delta` by default.
 
-`delta` is the one that closes findings. Use it only when the scan really covers everything.
+See [Import Types Explained](#import-types-explained) and the
+[batching and import types guide](docs/guides/BATCHING_AND_IMPORT_TYPES.md) for mode behavior
+and guidance on complete versus partial scans.
 
 ### Common runs
 
@@ -211,7 +211,7 @@ python3 phoenix_multi_scanner_enhanced.py --config config_multi_scanner.ini \
 | `--file` / `--folder` | One file, or every scan file in a folder. Pick one. |
 | `--scanner` | `auto` (default), or any of the 203+ scanner names |
 | `--asset-type` | `INFRA` `WEB` `CLOUD` `CONTAINER` `REPOSITORY` `CODE` `BUILD` |
-| `--import-type` | `new` (default) `merge` `delta` |
+| `--import-type` | `new` `merge` `delta`; defaults to config `import_type`, otherwise `new` |
 | `--assessment` | Assessment name. Auto-generated if you leave it out. |
 | `--tag-file` | JSON file of tags to attach to assets, for example CI metadata |
 | `--anonymize` | Replace hostnames and IP addresses before sending |
@@ -1489,7 +1489,7 @@ CI/CD build outputs
                         # If not provided, an interactive prompt will appear
                         # See ASSET_NAME_CUSTOMIZATION.md for details
                         
---import-type <type>    # Import mode (default: new)
+--import-type <type>    # Import mode (default: config import_type, otherwise new)
                         # Options:
                         #   - new   : Replace all data (closes missing vulnerabilities)
                         #   - merge : Combine with existing (closes missing vulnerabilities)

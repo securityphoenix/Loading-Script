@@ -46,7 +46,8 @@ def _collect_metadata() -> Tuple[Dict[str, str], str]:
         "ci_branch": _first_env("GITHUB_REF_NAME", "BRANCH_NAME", "BUILD_SOURCEBRANCHNAME", "CI_COMMIT_REF_NAME"),
         "ci_commit": _first_env("GITHUB_SHA", "GIT_COMMIT", "BUILD_SOURCEVERSION", "CI_COMMIT_SHA"),
         "ci_run_id": _first_env("GITHUB_RUN_ID", "BUILD_NUMBER", "BUILD_BUILDID", "CI_PIPELINE_ID"),
-        "ci_job": _first_env("GITHUB_JOB", "STAGE_NAME", "BUILD_DEFINITIONNAME", "CI_JOB_NAME"),
+        # Azure DevOps: SYSTEM_JOBDISPLAYNAME / AGENT_JOBNAME name the job; BUILD_DEFINITIONNAME is the pipeline.
+        "ci_job": _first_env("GITHUB_JOB", "STAGE_NAME", "SYSTEM_JOBDISPLAYNAME", "AGENT_JOBNAME", "CI_JOB_NAME"),
         "ci_actor": _first_env("GITHUB_ACTOR", "BUILD_REQUESTEDFOR", "GITLAB_USER_LOGIN"),
         "ci_workflow": _first_env("GITHUB_WORKFLOW", "BUILD_DEFINITIONNAME", "CI_PIPELINE_SOURCE"),
         "ci_pipeline_url": _first_env("GITHUB_SERVER_URL", "BUILD_URL", "CI_PIPELINE_URL"),
