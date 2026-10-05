@@ -60,6 +60,11 @@ class TestTruffleHogJenkins(unittest.TestCase):
         manager._find_translator_by_name = lambda name: self.translator
         manager.enhanced_importer = Mock()
         manager._convert_session_to_result = lambda *args: {'success': True}
+        # __new__ skips __init__; set what it sets for the import type
+        manager.phoenix_config = PhoenixConfig(
+            client_id='test', client_secret='test', api_base_url='https://phoenix.example.invalid'
+        )
+        manager._config_import_type = manager.phoenix_config.import_type
         return manager
 
     def real_manager(self):

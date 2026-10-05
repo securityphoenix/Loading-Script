@@ -24,7 +24,12 @@ phoenix_fields:
   
   findings:
     required: ["name", "description", "remedy", "severity", "location"]
-    optional: ["referenceIds", "cwes", "publishedDateTime", "details"]
+    optional: ["referenceIds", "cwes", "publishedDateTime", "details", "packages"]
+    packages:
+      - name
+      - version
+      - cpe
+      - fixVersions
     severity_range: ["1.0", "10.0"]  # String format
   
   tags:

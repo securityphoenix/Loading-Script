@@ -1781,7 +1781,7 @@ class MultiScannerImportManager(PhoenixImportManager):
     
     def process_scanner_file(self, file_path: str, scanner_type: Optional[str] = None,
                            asset_type: Optional[str] = None, assessment_name: Optional[str] = None,
-                           import_type: str = "new", anonymize: bool = False,
+                           import_type: Optional[str] = None, anonymize: bool = False,
                            just_tags: bool = False, create_empty_assets: bool = False,
                            create_inventory_assets: bool = False, verify_import: bool = False) -> Dict[str, Any]:
         """Process a scanner file with automatic or specified scanner detection"""
@@ -1853,7 +1853,13 @@ class MultiScannerImportManager(PhoenixImportManager):
             assessment_name = f"{scanner_name}_{file_name}_{datetime.now().strftime('%Y%m%d_%H%M%S')}"
         
         # Update Phoenix config
-        self.phoenix_config.import_type = import_type
+        # Not in Utils: set the import type only when one is requested; the argparse default "new"
+        # used to override the config file's import_type on every run. The config file's value is kept
+        # from the first call (load_configuration() runs after __init__), so a request can't stick.
+        if not hasattr(self, '_config_import_type'):
+            self._config_import_type = self.phoenix_config.import_type
+        self.phoenix_config.import_type = import_type or self._config_import_type
+        import_type = self.phoenix_config.import_type
         
         # Import assets
         api_client = PhoenixAPIClient(self.phoenix_config)
@@ -1976,8 +1982,8 @@ Examples:
     
     # Import options
     parser.add_argument('--assessment', type=str, help='Assessment name (default: auto-generated)')
-    parser.add_argument('--import-type', choices=['new', 'merge', 'delta'], default='new',
-                       help='Import type (default: new)')
+    parser.add_argument('--import-type', choices=['new', 'merge', 'delta'], default=None,
+                       help='Import type (default: import_type from the config file, else new)')
     parser.add_argument('--anonymize', action='store_true', help='Anonymize sensitive data')
     parser.add_argument('--just-tags', action='store_true', help='Only add tags, do not import')
     parser.add_argument('--create-empty-assets', action='store_true', 

@@ -7,6 +7,57 @@ This project uses [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 **Rule:** every change to this folder MUST add an entry here before it is published.
 See `CLAUDE.md` in this folder and `../UTILS_PUBLISH_TO_PUBLIC.md`.
 
+## [5.0.1] - 2026-10-01 - **Utils consolidation and import fixes**
+
+Mostly restores fixes that were made in the Utils repository after this bundle was copied and
+were missing from 5.0.0. The `--import-type` fixes are new.
+
+### 🔧 Fixed
+
+- **Grype asset subtype.** Grype imports send `assessment.assetSubType = CONTAINER_IMAGE`, with and
+  without batching. Other scanners send no subtype. A Grype import with `--asset-type INFRA` is
+  rejected by the Phoenix API ("Infra assets require at least one of: IP, hostname or FQDN"), with
+  or without the subtype.
+- **Package fix versions.** `findings[].packages[].fixVersions` is sent for Grype (`fix.versions`),
+  and Trivy (`FixedVersion`; a comma-separated value becomes one entry per version).
+  Order is kept and duplicates and blank values are dropped.
+- **Import errors.** In `phoenix_multi_scanner_enhanced.py` and the scanner service, authentication
+  and HTTP failures now reach the result and the job with their real message, for example
+  `Phoenix API 400: <detail>` or `Phoenix authentication failed: no access token`, instead of
+  `Unknown error` or `No response from API`. With `--disable-batching`, a successful upload is no
+  longer reported as a failure. The older `phoenix_multi_scanner_import.py` and
+  `phoenix_import_refactored.py` CLIs still do not show the message.
+- **Requested import type.** `phoenix_multi_scanner_enhanced.py` sends the requested
+  `--import-type`. It used to send the config file's `import_type` (default `new`) whatever was
+  requested. Without `--import-type`, the config file's value still applies.
+  - `phoenix_multi_scanner_import.py` already sent the requested type, but without the flag it
+    sent `new` over the config file's `import_type`. Now the config file's value applies there too.
+  - **Behaviour change:** the CI wrapper and examples already request `delta` by default.
+    The enhanced importer now sends that requested mode instead of the config file's value.
+    Explicit overrides in the wrapper and configurable examples still apply.
+  - README and guide examples now describe the config fallback and the CI `delta` default
+    consistently with the CLI.
+- **Blank publication dates.** The shared API client leaves `publishedDateTime` out when the date
+  is blank (`""`, whitespace only or none). The Phoenix API rejects the blank strings.
+- **Native Grype JSON parsing.** `null` `fix`, `cvss` and `artifact` fields no longer crash parsing.
+  `matches: null` is treated as an empty match list. Invalid JSON reports the file path;
+  malformed match entries additionally report their index.
+- **Scanner service job logs.** The job log includes the importer's log lines. The job's log
+  file is closed when the job ends. A failure no longer replaces a more specific error already
+  stored on the job.
+- **`simple-upload-actions`.**
+  - `run_direct_upload.sh` resolves helper scripts relative to its own location, so it can be
+    invoked outside the bundle directory. Relative `--file` paths use the caller's working directory.
+  - Azure DevOps `ci_job` reads `SYSTEM_JOBDISPLAYNAME` / `AGENT_JOBNAME` when available;
+    `BUILD_DEFINITIONNAME` remains the source for `ci_workflow`.
+  - Duplicate GitHub Actions workflow and Jenkins pipeline blocks are removed. Working directories
+    and artifact paths now point at `Loading_Script_V5_PUB`.
+
+### 🔒 Security
+
+- `phoenix-scanner-client/requirements.txt` minimums are back at `requests>=2.32.4`,
+  `urllib3>=2.6.0`, `aiohttp>=3.13.3` and `pyasn1>=0.6.2`, the same as the scanner service.
+
 ## [5.0.0] - 2026-09-09 - **Version realignment, release tracking, publish gate**
 
 ### 💥 Breaking

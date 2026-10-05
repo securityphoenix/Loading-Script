@@ -84,7 +84,8 @@ class EnhancedPhoenixImportManager(PhoenixImportManager):
     def import_assets_with_batching(self, assets: List[AssetData], 
                                   assessment_name: str,
                                   import_type: str = "new",
-                                  validate_data: bool = True) -> ImportSession:
+                                  validate_data: bool = True,
+                                  asset_sub_type: Optional[str] = None) -> ImportSession:
         """Import assets with automatic batching and retry logic"""
         
         session_id = f"import_{datetime.now().strftime('%Y%m%d_%H%M%S')}"
@@ -123,7 +124,7 @@ class EnhancedPhoenixImportManager(PhoenixImportManager):
             logger.info(f"🔄 Processing batch {batch_num}/{total_batches} ({len(batch_assets)} assets)")
             
             batch_result = self._process_batch_with_retry(
-                batch_assets, assessment_name, import_type, batch_num
+                batch_assets, assessment_name, import_type, batch_num, asset_sub_type=asset_sub_type
             )
             
             session.batch_results.append(batch_result)
@@ -285,7 +286,8 @@ class EnhancedPhoenixImportManager(PhoenixImportManager):
     
     def _process_batch_with_retry(self, batch_assets: List[AssetData], 
                                 assessment_name: str, import_type: str, 
-                                batch_number: int) -> BatchResult:
+                                batch_number: int,
+                                asset_sub_type: Optional[str] = None) -> BatchResult:
         """Process a single batch with retry logic"""
         
         start_time = time.time()
@@ -299,7 +301,9 @@ class EnhancedPhoenixImportManager(PhoenixImportManager):
                 # Attempt import using API client
                 from phoenix_import_refactored import PhoenixAPIClient
                 api_client = PhoenixAPIClient(self.phoenix_config)
-                result = api_client.import_assets(batch_assets, assessment_name)
+                result = api_client.import_assets(
+                    batch_assets, assessment_name, asset_sub_type=asset_sub_type
+                )
                 
                 processing_time = time.time() - start_time
                 
@@ -315,15 +319,13 @@ class EnhancedPhoenixImportManager(PhoenixImportManager):
                 # Check if import actually succeeded
                 # Phoenix API can return success without a request ID for synchronous imports
                 if request_id is None and response_data is None:
-                    # No request ID and no response data means failure
-                    raise Exception("Import failed: No response from API")
+                    raise Exception("Phoenix import failed: empty API response")
                 
-                # Check if response_data indicates failure
                 if isinstance(response_data, dict):
-                    status = response_data.get('status', '').lower()
+                    status = str(response_data.get('status', '')).lower()
                     if status in ['error', 'failed']:
-                        error_msg = response_data.get('message', 'Unknown error')
-                        raise Exception(f"Import failed: {error_msg}")
+                        error_msg = response_data.get('message') or "Phoenix import failed without an error message"
+                        raise Exception(error_msg)
 
                 return BatchResult(
                     batch_number=batch_number,
