@@ -137,7 +137,7 @@ python phoenix_multi_scanner_import.py --file scan.json --import-type merge --as
 client_id = YOUR_CLIENT_ID
 client_secret = YOUR_CLIENT_SECRET
 api_base_url = https://api.poc1.appsecphx.io
-import_type = new
+import_type = merge
 ```
 
 ### Multi-Scanner Configuration

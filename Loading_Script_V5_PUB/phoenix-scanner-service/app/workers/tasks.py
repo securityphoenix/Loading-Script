@@ -367,8 +367,8 @@ def _create_temp_config(job, logger) -> str:
         logger.info(f"   Overriding import_type from API request: {job.import_type}")
         config['phoenix']['import_type'] = job.import_type
     else:
-        # Use default from config file or fallback to 'new'
-        config['phoenix'].setdefault('import_type', 'new')
+        # Use default from config file or fallback to 'merge'
+        config['phoenix'].setdefault('import_type', 'merge')
     
     # 4. Assessment Name - Override if provided in API request
     if job.assessment_name:

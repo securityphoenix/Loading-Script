@@ -235,8 +235,8 @@ python phoenix_multi_scanner_enhanced.py \
 
 ### Import Types
 
-- **`new`** (default) - Create new assessment, close missing vulnerabilities
-- **`merge`** - Update existing assessment, close missing vulnerabilities
+- **`new`** - Create new assessment, close missing vulnerabilities
+- **`merge`** (default) - Update existing assessment, close missing vulnerabilities
 - **`delta`** - Add/update only (don't close missing vulnerabilities)
 
 ### Flags
@@ -247,7 +247,7 @@ python phoenix_multi_scanner_enhanced.py \
 | `--asset-type` | Override asset type | Auto-detect |
 | `--asset-name` | Custom asset identifier | None |
 | `--assessment` | Assessment name | Auto-generated |
-| `--import-type` | Import type (new/merge/delta) | `new` |
+| `--import-type` | Import type (new/merge/delta) | `merge` |
 | `--import-csv-force` | Force CSV upload (not JSON) | `false` |
 | `--enable-batching` | Enable payload batching | `true` |
 | `--create-inventory-assets` | Create assets even without vulns | `false` |

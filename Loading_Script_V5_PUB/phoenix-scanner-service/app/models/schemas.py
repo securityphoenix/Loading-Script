@@ -72,7 +72,7 @@ class ScanUploadRequest(BaseModel):
     scanner_type: str = Field(default="auto", description="Scanner type (auto-detect or specific)")
     asset_type: Optional[AssetType] = Field(None, description="Override asset type")
     assessment_name: Optional[str] = Field(None, description="Assessment name (auto-generated if not provided)")
-    import_type: ImportType = Field(default=ImportType.NEW, description="Import type")
+    import_type: ImportType = Field(default=ImportType.MERGE, description="Import type")
     
     # Phoenix credentials (can be provided per request or use defaults from config)
     phoenix_client_id: Optional[str] = Field(None, description="Phoenix API client ID")
