@@ -39,7 +39,7 @@ Upload a scanner output file for processing.
 | `scanner_type` | String | No | `auto` | Scanner type (e.g., trivy, grype, qualys) |
 | `asset_type` | String | No | - | Asset type override (INFRA, WEB, CLOUD, CONTAINER, CODE, BUILD) |
 | `assessment_name` | String | No | Auto-generated | Assessment name in Phoenix |
-| `import_type` | String | No | `new` | Import type: new, merge, or delta |
+| `import_type` | String | No | `merge` | Import type: new, merge, or delta |
 | `phoenix_client_id` | String | No | - | Phoenix API client ID |
 | `phoenix_client_secret` | String | No | - | Phoenix API client secret |
 | `phoenix_api_url` | String | No | - | Phoenix API base URL |

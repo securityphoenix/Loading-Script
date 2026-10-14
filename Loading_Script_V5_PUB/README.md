@@ -211,7 +211,7 @@ python3 phoenix_multi_scanner_enhanced.py --config config_multi_scanner.ini \
 | `--file` / `--folder` | One file, or every scan file in a folder. Pick one. |
 | `--scanner` | `auto` (default), or any of the 203+ scanner names |
 | `--asset-type` | `INFRA` `WEB` `CLOUD` `CONTAINER` `REPOSITORY` `CODE` `BUILD` |
-| `--import-type` | `new` `merge` `delta`; defaults to config `import_type`, otherwise `new` |
+| `--import-type` | `new` `merge` `delta`; defaults to config `import_type`, otherwise `merge` |
 | `--assessment` | Assessment name. Auto-generated if you leave it out. |
 | `--tag-file` | JSON file of tags to attach to assets, for example CI metadata |
 | `--anonymize` | Replace hostnames and IP addresses before sending |
@@ -689,7 +689,7 @@ python3 phoenix_multi_scanner_enhanced.py \
 
 Phoenix Security supports **three import modes** that determine how new scan data interacts with existing assessment data.
 
-### 🔵 Import Type: `"new"` (Default)
+### 🔵 Import Type: `"new"`
 
 **Behavior:** Fresh start - removes existing vulnerabilities, then imports
 
@@ -726,7 +726,7 @@ python3 phoenix_multi_scanner_enhanced.py \
 
 ---
 
-### 🟢 Import Type: `"merge"`
+### 🟢 Import Type: `"merge"` (Default)
 
 **Behavior:** Combine with existing data - updates as needed
 
@@ -1118,7 +1118,7 @@ client_secret = your-client-secret-here
 api_base_url = https://api.securityphoenix.cloud
 
 # Import Settings
-import_type = new          # Options: new, merge, delta
+import_type = merge        # Options: new, merge, delta
 scan_type = Generic Scan   # Scanner description
 assessment_name =          # Leave empty for auto-generation
 
@@ -1489,7 +1489,7 @@ CI/CD build outputs
                         # If not provided, an interactive prompt will appear
                         # See ASSET_NAME_CUSTOMIZATION.md for details
                         
---import-type <type>    # Import mode (default: config import_type, otherwise new)
+--import-type <type>    # Import mode (default: config import_type, otherwise merge)
                         # Options:
                         #   - new   : Replace all data (closes missing vulnerabilities)
                         #   - merge : Combine with existing (closes missing vulnerabilities)

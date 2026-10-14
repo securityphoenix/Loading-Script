@@ -116,7 +116,7 @@ Examples:
             # Get batch-specific settings
             scanner_type = validate_scanner_type(batch.get('scanner_type', 'auto'))
             asset_type = batch.get('asset_type')
-            import_type = batch.get('import_type', 'new')
+            import_type = batch.get('import_type', 'merge')
             
             console.print(f"  Files: {len(file_paths)}")
             console.print(f"  Scanner: {scanner_type}")

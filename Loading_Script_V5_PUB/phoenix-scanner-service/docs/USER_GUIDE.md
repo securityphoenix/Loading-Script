@@ -318,10 +318,10 @@ curl -X POST "http://localhost:8000/api/v1/upload" \
 Control how data is imported:
 
 ```bash
-# New import (default) - creates new assessment
+# New import - creates new assessment
 curl ... -F "import_type=new"
 
-# Merge - merges with existing assessment
+# Merge (default) - merges with existing assessment
 curl ... -F "import_type=merge"
 
 # Delta - only imports new/changed vulnerabilities

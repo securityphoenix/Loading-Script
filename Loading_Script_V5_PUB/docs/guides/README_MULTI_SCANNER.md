@@ -124,7 +124,7 @@ cp customization/tags_config.yaml customization/custom_tags.yaml
 client_id = YOUR_CLIENT_ID
 client_secret = YOUR_CLIENT_SECRET
 api_base_url = https://api.poc1.appsecphx.io
-import_type = new
+import_type = merge
 
 [scanner_aqua]
 asset_type = CONTAINER

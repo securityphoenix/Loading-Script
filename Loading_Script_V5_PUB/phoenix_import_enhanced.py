@@ -83,7 +83,7 @@ class EnhancedPhoenixImportManager(PhoenixImportManager):
     
     def import_assets_with_batching(self, assets: List[AssetData], 
                                   assessment_name: str,
-                                  import_type: str = "new",
+                                  import_type: str = "merge",
                                   validate_data: bool = True,
                                   asset_sub_type: Optional[str] = None) -> ImportSession:
         """Import assets with automatic batching and retry logic"""
@@ -441,7 +441,7 @@ class EnhancedPhoenixImportManager(PhoenixImportManager):
                 logger.error(f"   Batch {batch.batch_number}: {batch.error_message}")
     
     def fix_csv_and_import(self, csv_file_path: str, assessment_name: str, 
-                          asset_type: str = "INFRA", import_type: str = "new") -> ImportSession:
+                          asset_type: str = "INFRA", import_type: str = "merge") -> ImportSession:
         """Complete workflow: fix CSV data and import with batching"""
         
         logger.info(f"🔧 Starting CSV fix and import workflow")
@@ -484,8 +484,8 @@ def main():
     parser.add_argument('--asset-type', default='INFRA', 
                        choices=['INFRA', 'WEB', 'CLOUD', 'CONTAINER', 'REPOSITORY', 'CODE', 'BUILD'],
                        help='Asset type (default: INFRA)')
-    parser.add_argument('--import-type', default='new', choices=['new', 'merge', 'delta'],
-                       help='Import type (default: new)')
+    parser.add_argument('--import-type', default='merge', choices=['new', 'merge', 'delta'],
+                       help='Import type (default: merge)')
     parser.add_argument('--config', default='config_multi_scanner.ini', 
                        help='Configuration file')
     parser.add_argument('--max-batch-size', type=int, default=500,

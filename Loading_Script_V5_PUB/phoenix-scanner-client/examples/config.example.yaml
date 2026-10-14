@@ -12,7 +12,7 @@ phoenix_api_url: https://api.demo.appsecphx.io
 
 # Default Settings
 default_scanner_type: auto
-default_import_type: new
+default_import_type: merge
 enable_batching: true
 fix_data: true
 
