@@ -142,7 +142,7 @@ phoenix_api_url: https://api.demo.appsecphx.io
 client_id = {REDACTED}
 client_secret = {REDACTED}
 api_base_url = https://api.demo.appsecphx.io
-import_type = new
+import_type = merge
 assessment_name = Default Assessment
 
 [CONTAINER]

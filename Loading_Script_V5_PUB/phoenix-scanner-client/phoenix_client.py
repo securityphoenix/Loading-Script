@@ -109,7 +109,7 @@ class PhoenixScannerClient:
         scanner_type: str = "auto",
         asset_type: Optional[str] = None,
         assessment_name: Optional[str] = None,
-        import_type: str = "new",
+        import_type: str = "merge",
         enable_batching: bool = True,
         fix_data: bool = True,
         remap_oci_labels: bool = False,

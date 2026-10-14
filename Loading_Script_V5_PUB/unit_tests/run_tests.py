@@ -121,7 +121,7 @@ class PhoenixTestRunner:
                 file_path=str(file_path),
                 scanner_type=test_case['scanner_type'],
                 asset_type=test_case.get('asset_type'),
-                import_type=test_case.get('import_type', 'new'),
+                import_type=test_case.get('import_type', 'merge'),
                 assessment_name=f"UnitTest-{test_case['scanner_type']}-{datetime.now().strftime('%Y%m%d_%H%M%S')}"
             )
             

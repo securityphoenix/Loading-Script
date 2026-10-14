@@ -37,7 +37,7 @@ python phoenix_multi_scanner_enhanced.py --file demo_infra.csv --scanner phoenix
 --asset-type TYPE              # Force asset type (INFRA/CLOUD/WEB/BUILD)
 --asset-name NAME              # Override asset identifier
 --assessment NAME              # Assessment name
---import-type TYPE             # new/merge/delta (default: new)
+--import-type TYPE             # new/merge/delta (default: merge)
 --import-csv-force             # Force CSV upload (not JSON)
 --enable-batching              # Enable batching (default: true)
 --debug                        # Debug mode

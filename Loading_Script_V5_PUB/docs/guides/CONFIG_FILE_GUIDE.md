@@ -33,7 +33,7 @@ api_base_url = https://api.demo.appsecphx.io
 
 # Import Settings
 scan_type = Generic Scan
-import_type = new
+import_type = merge
 assessment_name = 
 scan_target = 
 auto_import = true

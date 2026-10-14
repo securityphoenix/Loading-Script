@@ -417,7 +417,7 @@ Upload to `s3://bucket/config/lambda_config.ini`:
 api_base_url = https://api.appsecphx.io
 
 # Import settings
-import_type = new
+import_type = merge
 assessment_name_prefix = Lambda-Import
 wait_for_completion = true
 timeout = 300

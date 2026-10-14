@@ -30,7 +30,7 @@ async def upload_scan_file(
     scanner_type: str = Form(default="auto", description="Scanner type (auto or specific type)"),
     asset_type: Optional[str] = Form(None, description="Asset type override"),
     assessment_name: Optional[str] = Form(None, description="Assessment name"),
-    import_type: str = Form(default="new", description="Import type: new, merge, or delta"),
+    import_type: str = Form(default="merge", description="Import type: new, merge, or delta"),
     phoenix_client_id: Optional[str] = Form(None, description="Phoenix API client ID"),
     phoenix_client_secret: Optional[str] = Form(None, description="Phoenix API client secret"),
     phoenix_api_url: Optional[str] = Form(None, description="Phoenix API URL"),
