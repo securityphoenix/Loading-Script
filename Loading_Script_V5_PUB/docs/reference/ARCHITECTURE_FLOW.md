@@ -476,7 +476,7 @@ User Command:
 │    enhanced_importer.import_assets_with_batching(            │
 │        assets=[Asset1, Asset2],                              │
 │        assessment_name="Q4-Container-Scan",                  │
-│        import_type="merge"                                   │
+│        import_type="new"                                     │
 │    )                                                         │
 │                                                              │
 │    ┌────────────────────────────────────────────────┐       │

@@ -32,7 +32,7 @@ class Job(Base):
     scanner_type = Column(String(64), nullable=True)
     asset_type = Column(String(32), nullable=True)
     assessment_name = Column(String(256), nullable=True)
-    import_type = Column(String(20), nullable=False, default="merge")
+    import_type = Column(String(20), nullable=False, default="new")
     
     # Phoenix credentials (encrypted in production)
     phoenix_client_id = Column(String(256), nullable=True)

@@ -398,7 +398,7 @@ class PhoenixConfig:
     client_secret: str
     api_base_url: str
     scan_type: str = "Generic Scan"
-    import_type: str = "merge"
+    import_type: str = "new"
     assessment_name: str = ""
     scan_target: str = ""
     auto_import: bool = True

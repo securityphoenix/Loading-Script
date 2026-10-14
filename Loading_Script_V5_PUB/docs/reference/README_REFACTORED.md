@@ -93,7 +93,7 @@ client_id = YOUR_CLIENT_ID
 client_secret = YOUR_CLIENT_SECRET
 api_base_url = https://api.poc1.appsecphx.io
 scan_type = Tenable Scan
-import_type = merge
+import_type = new
 batch_delay = 10
 ```
 

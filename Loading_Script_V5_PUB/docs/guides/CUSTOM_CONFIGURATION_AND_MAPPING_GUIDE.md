@@ -50,7 +50,7 @@ api_base_url  = https://api.appsecphx.io           # Production
 #   new   — closes all existing vulnerabilities, replaces with imported set
 #   merge — adds new findings, does not close existing ones
 #   delta — only updates differences (safest for testing)
-import_type = merge
+import_type = new
 
 # Assessment name (auto-generated if empty)
 assessment_name = Q2-2026-Trivy-Scan

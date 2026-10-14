@@ -203,7 +203,7 @@ python phoenix_multi_scanner_import.py --file qualys_webapp.xml --scanner qualys
 | Option | Type | Values | Default | Description |
 |--------|------|--------|---------|-------------|
 | `--assessment` | String | Any string | Auto-generated | Assessment name in Phoenix |
-| `--import-type` | String | `new`, `merge`, `delta` | `merge` | Import mode |
+| `--import-type` | String | `new`, `merge`, `delta` | `new` | Import mode |
 
 **Usage:**
 ```bash
@@ -393,8 +393,11 @@ python phoenix_multi_scanner_import.py --folder /tenable_scans/ --scanner tenabl
 **Use Case:** Fresh, complete scan results that represent the current state.
 
 ```bash
-# New import
+# New import (default behavior)
 python phoenix_multi_scanner_import.py --file complete_scan.json --import-type new
+
+# Equivalent (new is default)
+python phoenix_multi_scanner_import.py --file complete_scan.json
 ```
 
 **Behavior:**
@@ -409,11 +412,8 @@ python phoenix_multi_scanner_import.py --file complete_scan.json --import-type n
 **Use Case:** Incremental scan results or when combining multiple scan sources.
 
 ```bash
-# Merge import (default behavior)
+# Merge import
 python phoenix_multi_scanner_import.py --file incremental_scan.json --import-type merge
-
-# Equivalent (merge is default)
-python phoenix_multi_scanner_import.py --file incremental_scan.json
 ```
 
 **Behavior:**
@@ -449,7 +449,7 @@ python phoenix_multi_scanner_import.py --file partial_scan.json --import-type de
 client_id = YOUR_CLIENT_ID
 client_secret = YOUR_CLIENT_SECRET
 api_base_url = https://api.poc1.appsecphx.io
-import_type = merge
+import_type = new
 batch_delay = 10
 
 [scanner_qualys]

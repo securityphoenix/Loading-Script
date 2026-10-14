@@ -67,7 +67,7 @@ phoenix_api_url: https://api.demo.appsecphx.io
 
 # Defaults
 default_scanner_type: auto
-default_import_type: merge
+default_import_type: new
 enable_batching: true
 fix_data: true
 timeout: 3600

@@ -122,16 +122,16 @@ api_base_url = https://api.appsecphx.io
 **config_multi_scanner.ini** (default):
 ```ini
 [phoenix]
-import_type = merge
+import_type = new
 ```
 
 **Per-Request** (API override):
 ```bash
-# Merge (default)
+# New assessment (default)
 curl ... -F "file=@scan.json"
 
-# New assessment
-curl ... -F "file=@scan.json" -F "import_type=new"
+# Merge
+curl ... -F "file=@scan.json" -F "import_type=merge"
 
 # Delta
 curl ... -F "file=@scan.json" -F "import_type=delta"

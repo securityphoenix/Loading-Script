@@ -92,7 +92,7 @@ All scanner-specific sections are preserved and used:
 client_id = your-default-client-id
 client_secret = your-default-secret
 api_base_url = https://api.demo.appsecphx.io
-import_type = merge
+import_type = new
 assessment_name = 
 auto_import = true
 wait_for_completion = true
@@ -139,12 +139,12 @@ curl -X POST "http://localhost:8000/api/v1/upload" \
 curl -X POST "http://localhost:8000/api/v1/upload" \
   -H "X-API-Key: your-api-key" \
   -F "file=@scan.json" \
-  -F "import_type=delta" \
+  -F "import_type=merge" \
   -F "assessment_name=Q4-2025-Security-Scan"
 ```
 
 **Result**:
-- Uses `delta` instead of config file's `import_type = merge`
+- Uses `merge` instead of config file's `import_type = new`
 - Uses custom assessment name instead of auto-generated
 - client_id and api_base_url from config file
 
@@ -237,7 +237,7 @@ curl -X POST "http://localhost:8000/api/v1/upload" \
 ```ini
 [phoenix]
 api_base_url = https://api.appsecphx.io
-import_type = merge
+import_type = new
 ```
 
 **API Requests per Tenant**:
@@ -251,19 +251,19 @@ curl ... -F "phoenix_client_id=tenant-b-id" -F "phoenix_client_secret=tenant-b-s
 
 ### Scenario 3: Different Import Strategies
 
-**config_multi_scanner.ini** (default: merge):
+**config_multi_scanner.ini** (default: new):
 ```ini
 [phoenix]
-import_type = merge
+import_type = new
 ```
 
 **API Requests**:
 ```bash
-# Merge with existing (default)
+# New assessment (default)
 curl ... -F "file=@scan1.json"
 
-# New assessment
-curl ... -F "file=@scan2.json" -F "import_type=new"
+# Merge with existing
+curl ... -F "file=@scan2.json" -F "import_type=merge"
 
 # Delta import only
 curl ... -F "file=@scan3.json" -F "import_type=delta"

@@ -20,7 +20,7 @@ The batching system in `phoenix_import_enhanced.py` intelligently splits large p
 # Location: phoenix_import_enhanced.py
 # Class: EnhancedPhoenixImportManager
 
-def import_assets_with_batching(self, assets, assessment_name, import_type="merge"):
+def import_assets_with_batching(self, assets, assessment_name, import_type="new"):
     """Main batching orchestration method"""
 ```
 
@@ -283,7 +283,7 @@ payload = {
 **Behavior:** Remove existing vulnerabilities first, then import new data
 
 ```python
-import_type = "new"
+import_type = "new"  # DEFAULT
 
 # Phoenix API Logic (pseudo-code):
 def process_import_new(assessment, new_data):
@@ -337,7 +337,7 @@ AFTER Import:
 **Behavior:** Update existing data, add new data, preserve other data
 
 ```python
-import_type = "merge"  # DEFAULT
+import_type = "merge"
 
 # Phoenix API Logic (pseudo-code):
 def process_import_merge(assessment, new_data):
@@ -489,7 +489,7 @@ python3 phoenix_multi_scanner_enhanced.py \
 parser.add_argument('--import-type', 
                    choices=['new', 'merge', 'delta'], 
                    default=None,  # Use the configured import type when omitted
-                   help='Import type (default: import_type from the config file, else merge)')
+                   help='Import type (default: import_type from the config file, else new)')
 ```
 
 ### Solution 2: Use Different Assessments for Different Scans

@@ -1259,7 +1259,7 @@ Examples:
     # Import options
     parser.add_argument('--assessment', type=str, help='Assessment name (default: auto-generated)')
     parser.add_argument('--import-type', choices=['new', 'merge', 'delta'], default=None,
-                       help='Import type (default: import_type from the config file, else merge)')
+                       help='Import type (default: import_type from the config file, else new)')
     parser.add_argument('--anonymize', action='store_true', help='Anonymize sensitive data')
     parser.add_argument('--just-tags', action='store_true', help='Only add tags, do not import')
     parser.add_argument('--create-empty-assets', action='store_true',

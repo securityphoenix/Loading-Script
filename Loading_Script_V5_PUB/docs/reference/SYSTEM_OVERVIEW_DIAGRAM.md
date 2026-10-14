@@ -268,7 +268,7 @@
 │  │ [import]        │  │ tags:           │  │   required: true│                │
 │  │ batch_size=500  │  │ - key: priority │  │                 │                │
 │  │ timeout=3600    │  │   value: high   │  │ audit_logging:  │                │
-│  │import_type=merge│  │                 │  │   enabled: true │                │
+│  │ import_type=new │  │                 │  │   enabled: true │                │
 │  └─────────────────┘  └─────────────────┘  └─────────────────┘                │
 │           │                     │                     │                        │
 │           └─────────────────────┼─────────────────────┘                        │

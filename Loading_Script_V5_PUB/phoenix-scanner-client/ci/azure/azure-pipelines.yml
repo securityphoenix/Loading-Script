@@ -30,7 +30,7 @@ parameters:
   - name: importType
     displayName: 'Import Type'
     type: string
-    default: 'merge'
+    default: 'new'
     values:
       - new
       - merge

@@ -41,7 +41,7 @@ Configuration follows this precedence (highest to lowest):
 | `--scanner` | string | No | auto-detect | Scanner type override |
 | `--assessment` | string | No | auto-generated | Assessment name in Phoenix |
 | `--asset-name` | string | No | from scan data | Override asset name |
-| `--import-type` | string | No | `merge` | Import mode: `new`, `merge`, `delta` |
+| `--import-type` | string | No | `new` | Import mode: `new`, `merge`, `delta` |
 | `--asset-type` | string | No | from translator | Override asset type |
 | `--fix-data` | flag | No | enabled | Auto-fix validation issues |
 | `--anonymize` | flag | No | disabled | Anonymize asset data |
@@ -82,7 +82,7 @@ Configuration follows this precedence (highest to lowest):
 | `client_id` | string | — | Yes | Phoenix OAuth2 client ID |
 | `client_secret` | string | — | Yes | Phoenix OAuth2 client secret (PAT) |
 | `api_base_url` | string | — | Yes | Phoenix API base URL |
-| `import_type` | string | `merge` | No | Default import type |
+| `import_type` | string | `new` | No | Default import type |
 | `assessment_name` | string | auto | No | Default assessment name |
 | `auto_import` | boolean | `true` | No | Auto-import after processing |
 | `wait_for_completion` | boolean | `true` | No | Wait for import to finish |
@@ -132,7 +132,7 @@ Per-scanner configuration sections. Example for Trivy:
 client_id = YOUR_CLIENT_ID
 client_secret = YOUR_CLIENT_SECRET
 api_base_url = https://api.appsecphx.io
-import_type = merge
+import_type = new
 auto_import = true
 wait_for_completion = true
 batch_delay = 5

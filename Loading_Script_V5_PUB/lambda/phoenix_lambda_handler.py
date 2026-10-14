@@ -244,7 +244,7 @@ def process_single_file(event: Dict, config: LambdaConfig) -> Dict[str, Any]:
     file_key = event.get('file_key', '')
     config_key = event.get('config_key', config.config_key)
     assessment_name = event.get('assessment_name', '')
-    import_type = event.get('import_type', 'merge')
+    import_type = event.get('import_type', 'new')
     
     # Handle S3 event format
     if 'Records' in event:

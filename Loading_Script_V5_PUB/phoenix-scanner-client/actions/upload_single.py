@@ -44,8 +44,8 @@ Examples:
     parser.add_argument('--asset-type', choices=['INFRA', 'WEB', 'CLOUD', 'CONTAINER', 'CODE', 'BUILD'],
                        help='Asset type override')
     parser.add_argument('--assessment', help='Assessment name (auto-generated if not provided)')
-    parser.add_argument('--import-type', choices=['new', 'merge', 'delta'], default='merge',
-                       help='Import type (default: merge)')
+    parser.add_argument('--import-type', choices=['new', 'merge', 'delta'], default='new',
+                       help='Import type (default: new)')
     
     # Client configuration
     parser.add_argument('--config', help='Path to config file (default: config.yaml)')
