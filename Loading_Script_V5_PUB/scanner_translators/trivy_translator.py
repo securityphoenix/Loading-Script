@@ -53,6 +53,26 @@ from .grype_translator import build_packages_from_component, normalize_fix_versi
 logger = logging.getLogger(__name__)
 
 
+def _phoenix_tags_from(record: Any, label_value_transforms: Optional[Dict[str, Any]]) -> List[Dict[str, str]]:
+    """Merge a record-level ``phoenix_tags`` dict into Phoenix tags.
+
+    Mirrors the Jenkins/TruffleHog phoenix_tags mechanism (trufflehog_translator.py
+    _jenkins_assets): any key present in label_value_transforms gets its value
+    rewritten; everything else passes through verbatim.
+    """
+    extra_tags = record.get('phoenix_tags') if isinstance(record, dict) else None
+    if not isinstance(extra_tags, dict):
+        return []
+    transforms = label_value_transforms or {}
+    tags = []
+    for key, value in extra_tags.items():
+        if not value:
+            continue
+        value = str(value)
+        tags.append({'key': str(key), 'value': transforms[key](value) if key in transforms else value})
+    return tags
+
+
 class TrivyTranslator(ScannerTranslator):
     """Translator for Trivy scanner results - handles multiple Trivy formats"""
 
@@ -239,6 +259,7 @@ class TrivyTranslator(ScannerTranslator):
                 'image_name': data.get('ArtifactName'),
             },
         )
+        label_value_transforms = getattr(self, 'label_value_transforms', None)
 
         asset = AssetData(
             asset_type=asset_type,
@@ -247,7 +268,7 @@ class TrivyTranslator(ScannerTranslator):
                 {"key": "scanner", "value": "trivy"},
                 {"key": "artifact_type", "value": artifact_type_raw or 'unknown'},
                 {"key": "asset_type_source", "value": type_source},
-            ]
+            ] + _phoenix_tags_from(data, label_value_transforms)
         )
 
         # Process Results[] → Vulnerabilities[], Misconfigurations[], Secrets[]
@@ -374,7 +395,7 @@ class TrivyTranslator(ScannerTranslator):
                     {"key": "kubernetes_namespace", "value": namespace},
                     {"key": "kubernetes_kind", "value": kind},
                     {"key": "asset_type_source", "value": "detected"},
-                ]
+                ] + _phoenix_tags_from(data, getattr(self, 'label_value_transforms', None))
             )
 
             for result in resource.get('Results') or []:
