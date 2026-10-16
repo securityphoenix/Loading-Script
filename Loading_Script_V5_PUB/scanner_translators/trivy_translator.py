@@ -395,7 +395,7 @@ class TrivyTranslator(ScannerTranslator):
                     {"key": "kubernetes_namespace", "value": namespace},
                     {"key": "kubernetes_kind", "value": kind},
                     {"key": "asset_type_source", "value": "detected"},
-                ]
+                ] + _phoenix_tags_from(data, getattr(self, 'label_value_transforms', None))
             )
 
             for result in resource.get('Results') or []:
