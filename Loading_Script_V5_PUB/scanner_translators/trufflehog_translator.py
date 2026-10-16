@@ -17,6 +17,8 @@ Note: TruffleHog has confusing version naming with overlapping "V3" and "v3" for
 
 import json
 import logging
+import re
+from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple
 from urllib.parse import unquote, urlsplit, urlunsplit
 
@@ -28,6 +30,11 @@ from phoenix_import_refactored import AssetData
 from tag_utils import get_tags_safely
 
 logger = logging.getLogger(__name__)
+
+# scheme:// then everything up to the last '@' of the authority (user[:pass]@)
+_HTTP_USERINFO = re.compile(r'^(\s*https?://)[^/?#]*@', re.IGNORECASE)
+# Any other scheme: only a user:secret@ pair (ssh://git@host keeps its plain user name)
+_SECRET_USERINFO = re.compile(r'^(\s*[a-z][a-z0-9+.-]*://)[^/?#@:]*:[^/?#]*@', re.IGNORECASE)
 
 
 class TruffleHogJenkinsError(ValueError):
@@ -211,6 +218,30 @@ class TruffleHogTranslator(ScannerTranslator):
         job_url = urlunsplit((parsed.scheme, host, '/' + '/'.join(parts) + '/', '', ''))
         return job_url, names
 
+    @staticmethod
+    def _without_userinfo(url: str) -> str:
+        """Drop user[:token]@ from an http(s) URL and user:secret@ from any other scheme://; anything else is kept as written."""
+        url = _HTTP_USERINFO.sub(r'\1', url, count=1)
+        return _SECRET_USERINFO.sub(r'\1', url, count=1)
+
+    def _merge_phoenix_tags(self, record: Dict[str, Any], asset: AssetData) -> None:
+        """Merge a record's phoenix_tags {key: value} into the asset's tags, added before import.
+
+        The owner is expected as {"new_authors": "<id>"}; any key present in
+        self.label_value_transforms (set by --remap-oci-labels) has its value transformed exactly
+        as for Grype image labels. Works the same from any asset-building path (Jenkins or NDJSON).
+        """
+        extra_tags = record.get('phoenix_tags')
+        transforms = getattr(self, 'label_value_transforms', None) or {}
+        if isinstance(extra_tags, dict):
+            for key, value in extra_tags.items():
+                if not value:
+                    continue
+                value = str(value)
+                tag = {'key': str(key), 'value': transforms[key](value) if key in transforms else value}
+                if tag not in asset.tags:
+                    asset.tags.append(tag)
+
     def _parse_jenkins_wrapper(self, wrapper: Any) -> List[AssetData]:
         if not self._is_jenkins_wrapper(wrapper):
             raise TruffleHogJenkinsError('Not a TruffleHog Jenkins wrapper')
@@ -266,19 +297,7 @@ class TruffleHogTranslator(ScannerTranslator):
                     attributes={'repository': job_url, 'scannerSource': job_url},
                     tags=tags,
                 )
-            # Each record can carry phoenix_tags {key: value}, added before import; they become asset tags.
-            # The owning team is expected as {"org.opencontainers.image.new_authors_key": "<value>"};
-            # --remap-oci-labels transforms that value exactly as for Grype image labels.
-            extra_tags = record.get('phoenix_tags')
-            transforms = getattr(self, 'label_value_transforms', None) or {}
-            if isinstance(extra_tags, dict):
-                for key, value in extra_tags.items():
-                    if not value:
-                        continue
-                    value = str(value)
-                    tag = {'key': str(key), 'value': transforms[key](value) if key in transforms else value}
-                    if tag not in asset.tags:
-                        asset.tags.append(tag)
+            self._merge_phoenix_tags(record, asset)
             verified = record.get('Verified') is True
             finding = findings.get((job_url, detector))
             if finding is None:
@@ -324,6 +343,7 @@ class TruffleHogTranslator(ScannerTranslator):
         
         secrets = []
         jenkins_records = []
+        tag_records = []
         is_v3 = False
         
         try:
@@ -362,6 +382,10 @@ class TruffleHogTranslator(ScannerTranslator):
                     
                     if vuln:
                         secrets.append(vuln)
+                        if isinstance(finding, dict) and isinstance(finding.get('phoenix_tags'), dict):
+                            # Only the small phoenix_tags sub-dict is kept, not the whole finding
+                            # (which can carry a large Raw/RawV2 secret value) until EOF.
+                            tag_records.append({'phoenix_tags': finding['phoenix_tags']})
 
             assets = []
             if jenkins_records:
@@ -384,17 +408,35 @@ class TruffleHogTranslator(ScannerTranslator):
             version = "V3" if is_v3 else "V2"
             tags = get_tags_safely(self.tag_config)
             
+            # The backend rejects CODE assets without scannerSource and keys them on
+            # repository/scannerSource, so the scanned git repository is the asset's identity.
+            # Without exactly one (V2, filesystem scans, several repos) the file name is.
+            repos = {secret['details'].get('repository') for secret in secrets} - {None, '', 'unknown'}
+            if len(repos) == 1:
+                source = repos.pop()
+            else:
+                source = Path(file_path).name
+                logger.warning(
+                    'TruffleHog NDJSON has %d distinct git repositories; using the file name %r as the asset',
+                    len(repos), source,
+                )
+
             asset = AssetData(
                 asset_type='CODE',
                 attributes={
                     'name': f"TruffleHog {version} Scan Results",
-                    'scanner': f'TruffleHog {version}'
+                    'scanner': f'TruffleHog {version}',
+                    'repository': source,
+                    'scannerSource': source,
                 },
                 tags=tags + [{"key": "scanner", "value": f"trufflehog-{version.lower()}"}]
             )
             
             for vuln in secrets:
                 asset.findings.append(vuln)
+
+            for record in tag_records:
+                self._merge_phoenix_tags(record, asset)
             
             assets.append(self.ensure_asset_has_findings(asset))
             
@@ -466,6 +508,8 @@ class TruffleHogTranslator(ScannerTranslator):
             file_path = git_data.get('file', 'unknown')
             commit = git_data.get('commit', 'unknown')
             repo = git_data.get('repository', 'unknown')
+            if isinstance(repo, str):
+                repo = self._without_userinfo(repo)  # it lands in the finding's location and details
             
             # Severity based on verification
             severity = 'High' if verified else 'Medium'
