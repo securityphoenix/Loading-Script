@@ -57,12 +57,15 @@ def apply_oci_label_remap_to_grype_translator(translator) -> None:
     Also attached to TrivyTranslator: a top-level ``phoenix_tags`` dict carries the same keys,
     transformed the same way.
     """
-    if translator.__class__.__name__ not in ("GrypeTranslator", "TruffleHogTranslator", "TrivyTranslator"):
+    if translator.__class__.__name__ not in ("GrypeTranslator", "TruffleHogTranslator", "TrivyTranslator", "ConfigurableScannerTranslator"):
         logger.warning(
-            "--remap-oci-labels ignored: translator %s is not GrypeTranslator, TruffleHogTranslator, or TrivyTranslator",
+            "--remap-oci-labels ignored: translator %s is not GrypeTranslator, TruffleHogTranslator, TrivyTranslator, or ConfigurableScannerTranslator",
             translator.__class__.__name__,
         )
         return
+    if translator.__class__.__name__ == "ConfigurableScannerTranslator" and not os.environ.get(WORKSPACE_PREFIX, "").strip():
+        logger.warning("--remap-oci-labels ignored for ConfigurableScannerTranslator: %s is not set", WORKSPACE_PREFIX)
+        return  # generic formats import as without the flag
 
     translator.label_value_transforms = build_label_value_transforms()
     if translator.__class__.__name__ == "GrypeTranslator":  # Grype labels stay as on main

@@ -1667,6 +1667,7 @@ class ConfigurableScannerTranslator(ScannerTranslator):
             raw_assets = self.universal_translator.parse_file(file_path, scanner_info)
             
             # Convert to AssetData format
+            from scanner_translators.trivy_translator import _phoenix_tags_from
             assets = []
             for raw_asset in raw_assets:
                 # Create AssetData object
@@ -1674,6 +1675,7 @@ class ConfigurableScannerTranslator(ScannerTranslator):
                     asset_type=raw_asset.get('asset_type', 'INFRA'),
                     attributes=raw_asset.get('attributes', {}),
                     tags=self.tag_config.get_all_tags() + raw_asset.get('tags', [])
+                    + _phoenix_tags_from(raw_asset, getattr(self, 'label_value_transforms', None))
                 )
                 
                 # Add findings

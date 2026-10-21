@@ -655,6 +655,41 @@ scanners:
           "INFO": "1.0"
           "WARNING": "5.0"
           "ERROR": "8.0"
+      # Semgrep results wrapped with the scanned repository's URL (one file per repository).
+      # Single-quoted '"..."' values are static. List-valued location joins its parts with ':'.
+      - name: "semgrep_repository_json"
+        file_patterns: ["*.json"]
+        format_type: "json"
+        asset_type: "REPOSITORY"
+        detection:
+          required_keys: ["object_key", "scanned_at", "scanner", "results"]
+          json_keys: ["check_id", "semgrep"]
+        strip_url_credentials: ["repository"]
+        field_mappings:
+          asset:
+            repository: "repository"
+            scannerSource: '"semgrep"'
+            origin: '"semgrep"'
+          vulnerability:
+            name: "results[].check_id"
+            description: "extra.message"
+            remedy: "extra.fix"
+            severity: "extra.severity"
+            location: ["path", "start.line"]
+            cwes: "extra.metadata.cwe"
+            details:
+              check_id: "check_id"
+              path: "path"
+              start_line: "start.line"
+              end_line: "end.line"
+              fingerprint: "extra.fingerprint"
+              confidence: "extra.metadata.confidence"
+              owasp: "extra.metadata.owasp"
+              references: "extra.metadata.references"
+        severity_mapping:
+          "INFO": "1.0"
+          "WARNING": "5.0"
+          "ERROR": "8.0"
 
   # ESLint Scanner (JavaScript SAST)
   eslint:

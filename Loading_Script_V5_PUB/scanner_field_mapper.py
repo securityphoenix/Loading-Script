@@ -17,6 +17,7 @@ import re
 import xml.etree.ElementTree as ET
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Union
+from urllib.parse import urlsplit, urlunsplit
 import yaml
 import csv
 from datetime import datetime
@@ -367,7 +368,12 @@ class FieldMapper:
             if phoenix_field == 'details':
                 continue  # Handle details separately
             
-            if scanner_path.startswith('"') and scanner_path.endswith('"'):
+            if isinstance(scanner_path, list):
+                # Joined value like "path:line", set only when every part is present
+                parts = [self.get_nested_value(vuln_data, self._strip_array_notation(p)) for p in scanner_path]
+                if all(part is not None for part in parts):
+                    vulnerability[phoenix_field] = ':'.join(str(part) for part in parts)
+            elif scanner_path.startswith('"') and scanner_path.endswith('"'):
                 # Static value
                 vulnerability[phoenix_field] = scanner_path.strip('"')
             else:
@@ -834,6 +840,10 @@ class UniversalScannerTranslator:
         # Map asset attributes
         asset_mappings = field_mappings.get('asset', {})
         asset_attributes = self.field_mapper.map_asset_attributes(data, asset_mappings, asset_type)
+        for field in format_config.get('strip_url_credentials', []):
+            if field in asset_attributes:  # drop user:token@ from a URL
+                parsed = urlsplit(asset_attributes[field])
+                asset_attributes[field] = urlunsplit(parsed._replace(netloc=parsed.netloc.rpartition('@')[2]))
         
         # Create base asset
         asset = {
@@ -845,6 +855,8 @@ class UniversalScannerTranslator:
                 {'key': 'format', 'value': scanner_info['format']}
             ]
         }
+        if isinstance(data, dict) and 'phoenix_tags' in data:
+            asset['phoenix_tags'] = data['phoenix_tags']
         
         # Extract vulnerabilities - supports multi-level nested arrays
         vuln_mappings = field_mappings.get('vulnerability', {})
