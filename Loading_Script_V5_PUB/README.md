@@ -9,12 +9,12 @@
 
 | | |
 |---|---|
-| **Version** | `5.0.1` — see [`VERSION`](VERSION) |
+| **Version** | `5.1.0` — see [`VERSION`](VERSION) |
 | **Changelog** | [`CHANGELOG.md`](CHANGELOG.md) |
 | **Status** | Active. All new scanners and features land here. |
 | **Predecessor** | `../Loading_Script_V2` — legacy, maintenance only |
 | **Public mirror** | `Loading_Script_V5_PUB` in the public Loading-Script repo |
-| **Release tag** | `loading-v5-v5.0.1` |
+| **Release tag** | `loading-v5-v5.1.0` |
 
 > **Before you change anything in this folder:** add a `CHANGELOG.md` entry and bump
 > `VERSION`. The publish tool refuses to ship this bundle otherwise. See

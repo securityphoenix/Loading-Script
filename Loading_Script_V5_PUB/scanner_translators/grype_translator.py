@@ -17,6 +17,7 @@ Asset Type: CONTAINER
 Tagging / Attributes:
 - source.target.repoDigests                -> asset_attributes['imageDigest']
 - All labels -> Phoenix asset tags (verbatim key/value).
+- Manifest annotations (source.target.manifest) are read like labels; an annotation wins on the same key.
 - org.opencontainers.image.base.digest -> tag + asset_attributes['baseImageDigest']
 - org.opencontainers.image.base.name   -> tag + asset_attributes['baseImageName']
 - Missing / null / empty labels are tolerated; the translator never crashes.

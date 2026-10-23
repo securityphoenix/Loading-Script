@@ -26,6 +26,7 @@ from typing import Any, Callable, Dict, List, Optional
 from phoenix_import_refactored import (
     PhoenixConfig, TagConfig, AssetData, VulnerabilityData
 )
+from grype_digest_utils import grype_manifest_annotations
 
 logger = logging.getLogger(__name__)
 
@@ -149,6 +150,8 @@ class ScannerTranslator(ABC):
         All non-empty labels become Phoenix tag dicts (verbatim key/value).
         Labels whose keys appear in *label_to_attribute* are also placed in
         the returned attributes dict (with the mapped camelCase key).
+        Manifest annotations (source.target.manifest) are read like labels;
+        an annotation wins on the same key.
 
         Returns:
             (label_attributes, label_tags)
@@ -162,6 +165,7 @@ class ScannerTranslator(ABC):
         label_tags: List[Dict[str, str]] = []
         label_attributes: Dict[str, str] = {}
         labels = target_info.get('labels') if isinstance(target_info, dict) else None
+        labels = {**(labels if isinstance(labels, dict) else {}), **grype_manifest_annotations(target_info)}
         if isinstance(labels, dict) and labels:
             for k, v in labels.items():
                 if not k or v is None:

@@ -1,7 +1,9 @@
 #!/usr/bin/env python3
-"""Shared Grype repoDigest -> imageDigest resolution (no scanner package imports)."""
+"""Shared Grype source.target helpers (no scanner package imports)."""
 
-from typing import Any, List, Optional
+import base64
+import json
+from typing import Any, Dict, List, Optional
 
 
 def normalize_image_digest(value: str) -> Optional[str]:
@@ -55,3 +57,12 @@ def resolve_image_digest_from_grype_target(target_info: Any) -> Optional[str]:
         selected = matched
 
     return normalize_image_digest(selected)
+
+
+def grype_manifest_annotations(target_info: Any) -> Dict[str, Any]:
+    """Return the OCI annotations in Grype's base64 source.target.manifest, or {}."""
+    try:
+        annotations = json.loads(base64.b64decode(target_info["manifest"])).get("annotations")
+    except (AttributeError, KeyError, TypeError, ValueError):
+        return {}
+    return annotations if isinstance(annotations, dict) else {}
