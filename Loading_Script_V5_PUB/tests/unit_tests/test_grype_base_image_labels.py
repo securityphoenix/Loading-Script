@@ -7,6 +7,7 @@ baseImageName / baseImageDigest, never in the child's own imageName / imageDiges
 kept as tags (Utils 84c63ba).
 """
 
+import base64
 import json
 import sys
 import tempfile
@@ -75,6 +76,36 @@ class TestGrypeChildrenOfOneBase(unittest.TestCase):
             self.assertIn({"key": BASE_DIGEST, "value": "sha256:base"}, asset.tags)
             self.assertNotIn("imageName", attrs)
             self.assertNotIn("imageDigest", attrs)
+
+
+def manifest_with(annotations):
+    return base64.b64encode(json.dumps({"annotations": annotations}).encode()).decode()
+
+
+class TestManifestAnnotations(unittest.TestCase):
+    def test_annotations_promote_like_labels(self):
+        attrs, tags = ScannerTranslator.promote_oci_labels({
+            "manifest": manifest_with({BASE_NAME: "example.invalid/base:1"}),
+        })
+        self.assertEqual(attrs, {"baseImageName": "example.invalid/base:1"})
+        self.assertEqual(tags, [{"key": BASE_NAME, "value": "example.invalid/base:1"}])
+
+    def test_annotation_wins_over_label(self):
+        attrs, tags = ScannerTranslator.promote_oci_labels({
+            "labels": {BASE_NAME: "inherited:1", "team": "x"},
+            "manifest": manifest_with({BASE_NAME: "example.invalid/base:1"}),
+        })
+        self.assertEqual(attrs, {"baseImageName": "example.invalid/base:1"})
+        self.assertEqual(tags, [
+            {"key": BASE_NAME, "value": "example.invalid/base:1"},
+            {"key": "team", "value": "x"},
+        ])
+
+    def test_unreadable_manifest_is_ignored(self):
+        for target in ({"manifest": "not base64!"}, {"manifest": base64.b64encode(b"[1]").decode()},
+                       {"manifest": None}, {}, "not-a-dict"):
+            with self.subTest(target=target):
+                self.assertEqual(ScannerTranslator.promote_oci_labels(target), ({}, []))
 
 
 if __name__ == "__main__":

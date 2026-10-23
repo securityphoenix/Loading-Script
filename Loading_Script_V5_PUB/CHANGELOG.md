@@ -7,12 +7,61 @@ This project uses [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 **Rule:** every change to this folder MUST add an entry here before it is published.
 See `CLAUDE.md` in this folder and `../UTILS_PUBLISH_TO_PUBLIC.md`.
 
+## [5.1.0] - 2026-10-23 - **Grype annotations, owner tags and Semgrep**
+
+### ✨ Added
+
+- **Grype manifest annotations.** Grype imports read OCI manifest annotations as well as image
+  labels, and treat them the same way. On the same key the annotation wins, because labels are
+  inherited from the parent image. Grype `docker:` scans carry no annotations; scan with
+  `registry:` or `oci-dir:` to get them.
+- **`new_authors` owner tag (Trivy, TruffleHog, Semgrep).** A top-level
+  `"phoenix_tags": {"new_authors": "<id>"}` in the scan file becomes asset tags. With
+  `--remap-oci-labels` and `WORKSPACE_PREFIX`, `new_authors` is rewritten to
+  `<WORKSPACE_PREFIX>:<id>`, the same transform as Grype's
+  `org.opencontainers.image.new_authors_key`. Without `WORKSPACE_PREFIX` the flag is ignored for
+  generic (YAML-mapped) formats. Grype behaviour is unchanged.
+- **Semgrep repository JSON.** New `semgrep_repository_json` format under the `semgrep` scanner:
+  one REPOSITORY asset per file (the wrapper's `repository` URL, credentials removed) and one
+  finding per result (rule id, message, fix, severity, CWEs, location `path:line`). A file without
+  `repository` is rejected by the Phoenix API; there is no fallback asset.
+
+### 🔧 Fixed
+
+- **Semgrep detected as Twistlock.** Semgrep repository wrapper files are now read by the Semgrep
+  format instead of the Twistlock mapping.
+- **TruffleHog plain NDJSON.** Assets set `repository` / `scannerSource` (the scanned git
+  repository, else the import file name), so the import is no longer rejected with
+  "Asset attribute scannerSource is required". `user:token@` credentials are removed from
+  repository URLs before they reach the asset or the finding location.
+
 ## [5.0.1] - 2026-10-01 - **Utils consolidation and import fixes**
 
 Mostly restores fixes that were made in the Utils repository after this bundle was copied and
 were missing from 5.0.0. The `--import-type` fixes are new.
 
+### ✨ Added
+
+- **TruffleHog on Jenkins.** The TruffleHog translator reads the Jenkins wrapper
+  (`schema_version` 1.x, `scan.tool = trufflehog`, `scan.source = jenkins`, `findings` = native
+  TruffleHog records). One CODE asset per Jenkins job (build numbers are ignored) and one finding
+  per job and detector, at location `<job URL>#<detector>`. Credentials are removed from the job
+  link. Per-record `phoenix_tags` become asset tags, and `--remap-oci-labels` rewrites the owner
+  value as for Grype. `Raw`, `RawV2` and `SecretParts` are never sent; `Redacted` is sent as
+  received unless it is empty or contains the raw value. A wrapper with no findings imports as an
+  empty, successful scan; a broken wrapper fails the import. A file holding TruffleHog records
+  that another translator picks up is refused, so secrets are never copied by the generic mapping.
+- **`.dockerignore`** keeps `.env` files and `__pycache__` out of Docker build contexts.
+
 ### 🔧 Fixed
+
+- **Grype child images keep their own identity.** `org.opencontainers.image.base.name` /
+  `.base.digest` labels set `baseImageName` / `baseImageDigest`. They used to set `imageName` /
+  `imageDigest`, so every image built from the same base was keyed as the base image. Like every
+  other label they are also sent as tags. `imageDigest` now comes from
+  `source.target.repoDigests`: a single digest is used; with several, only the one matching
+  `userInput`, otherwise none.
+- **Grype vulnerability ids.** A non-string `vulnerability.id` no longer crashes parsing.
 
 - **Grype asset subtype.** Grype imports send `assessment.assetSubType = CONTAINER_IMAGE`, with and
   without batching. Other scanners send no subtype. A Grype import with `--asset-type INFRA` is
