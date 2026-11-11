@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 """Nessus XML translator: detection and safe parsing."""
 
+import json
 import subprocess
 import sys
 import unittest
@@ -162,6 +163,71 @@ class TestNessusAssets(unittest.TestCase):
         self.assertEqual(len(assets), 1)
         self.assertEqual(assets[0].attributes["operatingSystem"], "Win 2019")
         self.assertEqual(assets[0].attributes["macAddress"], "aa:bb:cc")
+
+
+class TestNessusFindings(unittest.TestCase):
+    def test_counts_on_cvssv3_sample(self):
+        t = _translator()
+        findings = t.parse_file(str(DATA / "nessus_with_cvssv3.xml"))[0].findings
+        self.assertEqual(len(findings), 142)
+        self.assertEqual(t.last_stats["duplicates_merged"], 3)
+        self.assertEqual(sum(1 for f in findings if f["severity"] == "10.0"), 1)
+        self.assertTrue(all(f["name"].startswith(("CVE-", "Plugin-")) for f in findings))
+
+    def test_informational_only_file_is_empty_scan(self):
+        with self.assertRaises(NessusEmptyScan):
+            _translator().parse_file(str(DATA / "nessus_many_vuln.xml"))
+
+    def test_informational_included_when_option_set(self):
+        for value in ("true", "YES", "1"):
+            assets = _translator(include_informational=value).parse_file(str(DATA / "nessus_many_vuln.xml"))
+            self.assertEqual(len(assets[0].findings), 7)
+            self.assertTrue(all(f["severity"] == "1.0" for f in assets[0].findings))
+
+    def test_one_finding_per_cve(self):
+        text = nessus(one_host(items=item(severity=3, plugin_id=1001, cves=("CVE-2024-1", "CVE-2024-2"))))
+        findings = _translator().parse_file(write(".nessus", text))[0].findings
+        self.assertEqual([f["name"] for f in findings], ["CVE-2024-1", "CVE-2024-2"])
+        self.assertEqual({f["severity"] for f in findings}, {"8.0"})
+        self.assertEqual(findings[0]["details"]["plugin_id"], "1001")
+
+    def test_item_without_cve_and_port_zero(self):
+        findings = _translator().parse_file(write(".nessus", nessus(one_host(items=item(plugin_id=42, port="0")))))[0].findings
+        self.assertEqual((findings[0]["name"], findings[0]["location"]), ("Plugin-42", "tcp/0"))
+
+    def test_duplicate_keeps_highest_severity(self):
+        items = item(severity=2, plugin_id=1, cves=("CVE-2024-9",)) + item(severity=4, plugin_id=2, cves=("CVE-2024-9",))
+        f = _translator().parse_file(write(".nessus", nessus(one_host(items=items))))[0].findings
+        self.assertEqual(len(f), 1)
+        self.assertEqual((f[0]["severity"], f[0]["details"]["plugin_ids"]), ("10.0", ["2", "1"]))
+
+    def test_invalid_items_are_skipped_and_counted(self):
+        items = (item(extra_attrs={"severity": "9"}) + item(extra_attrs={"pluginID": ""})
+                 + item(plugin_id=7, extra_attrs={"port": "abc", "protocol": None}))
+        t = _translator()
+        f = t.parse_file(write(".nessus", nessus(one_host(items=items))))[0].findings
+        self.assertEqual(t.last_stats["invalid_items"], 2)
+        self.assertEqual(f[0]["location"], "tcp/0")
+
+    def test_text_rules(self):
+        f = _translator().parse_file(write(".nessus", nessus(one_host(items=item(
+            synopsis=None, description="x" * 2000, cwes=("79", "n/a"), vuln_publication_date="2024/03/05",
+            attachment="A" * 10_000, plugin_output="secret-host")))))[0].findings[0]
+        self.assertEqual(len(f["description"]), 500)
+        self.assertEqual(f["cwes"], ["CWE-79"])
+        self.assertEqual(f["published_date_time"], "2024-03-05T00:00:00")
+        self.assertNotIn("AAAAAAAAAA", json.dumps(f))
+        self.assertNotIn("secret-host", json.dumps(f))
+
+    def test_plugin_output_sent_only_when_enabled(self):
+        text = nessus(one_host(items=item(plugin_output="o" * 900)))
+        f = _translator(include_plugin_output="true").parse_file(write(".nessus", text))[0].findings[0]
+        self.assertEqual(len(f["details"]["plugin_output"]), 500)
+
+    def test_summary_log_line(self):
+        with self.assertLogs("scanner_translators.nessus_xml_translator", level="INFO") as logs:
+            _translator().parse_file(str(DATA / "nessus_with_cvssv3.xml"))
+        self.assertTrue(any("informational_skipped=23" in line and "findings=142" in line for line in logs.output))
 
 
 if __name__ == "__main__":
