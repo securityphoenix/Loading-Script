@@ -11,6 +11,7 @@ entities) and as a stream, so large scans do not sit in memory.
 import ipaddress
 import logging
 import re
+from datetime import datetime
 import xml.etree.ElementTree as ET
 from pathlib import Path
 from typing import Any, Dict, Iterator, List, Tuple
@@ -28,6 +29,10 @@ _SKIP_PROLOG = re.compile(
     rb"\s*(?:<\?.*?\?>|<!--.*?-->|<!DOCTYPE(?:[^\[>]|\[.*?\])*>)", re.DOTALL | re.IGNORECASE
 )
 SEVERITY_MAP = {4: "10.0", 3: "8.0", 2: "5.0", 1: "3.0"}
+_STAT_KEYS = (
+    "hosts", "items", "informational_skipped", "invalid_items", "invalid_hosts",
+    "duplicates_merged", "findings", "assets",
+)
 SCANNER_TAG = {"key": "scanner", "value": "tenable-nessus"}
 _FIRST_ELEMENT = re.compile(rb"\s*<([A-Za-z_][\w.\-]*)")
 
@@ -46,6 +51,14 @@ class NessusEmptyScan(Exception):
 
 class NessusXMLTranslator(ScannerTranslator):
     """Translator for Nessus v2 XML exports."""
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self._reset_counts()
+
+    def _reset_counts(self) -> None:
+        self._counts = {k: 0 for k in _STAT_KEYS}
+        self.last_stats = self._counts
 
     def can_handle(self, file_path: str, file_content: Any = None) -> bool:
         if Path(file_path).suffix.lower() not in (".nessus", ".xml"):
@@ -164,13 +177,16 @@ class NessusXMLTranslator(ScannerTranslator):
             if value.isascii() and value.isdigit():
                 cwes.append(f"CWE-{value}")
         published = None
-        match = re.fullmatch(r"(\d{4})/(\d{2})/(\d{2})", self._child_text(item, "vuln_publication_date"))
-        if match:
-            published = "%s-%s-%sT00:00:00" % match.groups()
+        try:
+            published = datetime.strptime(
+                self._child_text(item, "vuln_publication_date"), "%Y/%m/%d"
+            ).strftime("%Y-%m-%dT00:00:00")
+        except ValueError:
+            pass
         details = {
-            "plugin_id": plugin_id, "plugin_name": plugin_name,
+            "plugin_id": plugin_id, "plugin_name": self._cut(plugin_name),
             "plugin_family": item.get("pluginFamily"), "port": port, "protocol": protocol,
-            "svc_name": item.get("svc_name"),
+            "svc_name": self._cut(item.get("svc_name") or ""),
             "cvss_score": self._child_text(item, "cvss_base_score"),
             "cvss3_score": self._child_text(item, "cvss3_base_score"),
             "exploit_available": self._child_text(item, "exploit_available"),
@@ -179,6 +195,7 @@ class NessusXMLTranslator(ScannerTranslator):
             details["plugin_output"] = self._cut(self._child_text(item, "plugin_output"))
         details = {k: v for k, v in details.items() if v}
         cves = [c.text.strip() for c in item.findall("cve") if c.text and c.text.strip()]
+        cves = list(dict.fromkeys(cves))
         names = cves or [f"Plugin-{plugin_id}"]
         return [
             VulnerabilityData(
@@ -228,11 +245,9 @@ class NessusXMLTranslator(ScannerTranslator):
                 f"Nessus XML parse failed for {name}: the defusedxml package is missing: "
                 "run pip install defusedxml"
             ) from exc
-        self._counts = {k: 0 for k in (
-            "hosts", "items", "informational_skipped", "invalid_items", "invalid_hosts",
-            "duplicates_merged", "findings", "assets", "assets_without_findings")}
+        self._reset_counts()
         stats = self._counts
-        self.last_stats = stats
+        without_findings = 0
         assets: Dict[str, AssetData] = {}
         indexes: Dict[str, Dict[Tuple[str, str], Dict[str, Any]]] = {}
         props: Dict[str, str] = {}
@@ -281,7 +296,7 @@ class NessusXMLTranslator(ScannerTranslator):
             if asset.findings:
                 result.append(asset)
             else:
-                stats["assets_without_findings"] += 1
+                without_findings += 1
         stats["assets"] = len(result)
         stats["findings"] = sum(len(a.findings) for a in result)
         logger.info(
@@ -292,5 +307,8 @@ class NessusXMLTranslator(ScannerTranslator):
             stats["findings"], stats["assets"],
         )
         if not result:
-            raise NessusEmptyScan(f"Nessus file {name} holds no importable finding", stats)
+            raise NessusEmptyScan(
+                f"Nessus file {name} holds no importable finding",
+                {**stats, "assets_without_findings": without_findings},
+            )
         return result

@@ -202,11 +202,12 @@ class TestNessusFindings(unittest.TestCase):
         self.assertEqual((f[0]["severity"], f[0]["details"]["plugin_ids"]), ("10.0", ["2", "1"]))
 
     def test_invalid_items_are_skipped_and_counted(self):
-        items = (item(extra_attrs={"severity": "9"}) + item(extra_attrs={"pluginID": ""})
+        items = (item(extra_attrs={"severity": "9"}) + item(severity=2, plugin_id="abc")
                  + item(plugin_id=7, extra_attrs={"port": "abc", "protocol": None}))
         t = _translator()
         f = t.parse_file(write(".nessus", nessus(one_host(items=items))))[0].findings
         self.assertEqual(t.last_stats["invalid_items"], 2)
+        self.assertEqual(len(f), 1)
         self.assertEqual(f[0]["location"], "tcp/0")
 
     def test_text_rules(self):
@@ -214,6 +215,7 @@ class TestNessusFindings(unittest.TestCase):
             synopsis=None, description="x" * 2000, cwes=("79", "n/a"), vuln_publication_date="2024/03/05",
             attachment="A" * 10_000, plugin_output="secret-host")))))[0].findings[0]
         self.assertEqual(len(f["description"]), 500)
+        self.assertTrue(f["description"].endswith("..."))
         self.assertEqual(f["cwes"], ["CWE-79"])
         self.assertEqual(f["published_date_time"], "2024-03-05T00:00:00")
         self.assertNotIn("AAAAAAAAAA", json.dumps(f))
@@ -223,6 +225,72 @@ class TestNessusFindings(unittest.TestCase):
         text = nessus(one_host(items=item(plugin_output="o" * 900)))
         f = _translator(include_plugin_output="true").parse_file(write(".nessus", text))[0].findings[0]
         self.assertEqual(len(f["details"]["plugin_output"]), 500)
+
+    def _parse(self, text, **options):
+        t = _translator(**options)
+        return t, t.parse_file(write(".nessus", nessus(one_host(items=text))))[0].findings
+
+    def test_plugin_output_absent_when_option_off(self):
+        _, f = self._parse(item(plugin_output="out"))
+        self.assertNotIn("plugin_output", f[0]["details"])
+
+    def test_tie_keeps_first_seen(self):
+        _, f = self._parse(item(severity=3, plugin_id=1, cves=("CVE-1",), description="first")
+                           + item(severity=3, plugin_id=2, cves=("CVE-1",), description="second"))
+        self.assertEqual(len(f), 1)
+        self.assertEqual(f[0]["details"]["plugin_ids"], ["1", "2"])
+        self.assertIn("first", f[0]["description"])
+
+    def test_lower_severity_later_is_merged(self):
+        items = "".join(item(severity=s, plugin_id=i, cves=("CVE-1",)) for s, i in ((2, 1), (4, 2), (3, 3)))
+        t, f = self._parse(items)
+        self.assertEqual(len(f), 1)
+        self.assertEqual(f[0]["severity"], "10.0")
+        self.assertEqual(f[0]["details"]["plugin_ids"], ["2", "1", "3"])
+        self.assertEqual(t.last_stats["duplicates_merged"], 2)
+
+    def test_plugin_ids_absent_when_unmerged(self):
+        _, f = self._parse(item(cves=("CVE-1", "CVE-2")))
+        self.assertTrue(all("plugin_ids" not in x["details"] for x in f))
+
+    def test_synopsis_and_description_joined(self):
+        _, f = self._parse(item(synopsis="Syn", description="Desc"))
+        self.assertEqual(f[0]["description"], "Syn\n\nDesc")
+
+    def test_remedy_default_and_cut(self):
+        _, f = self._parse(item(solution=None))
+        self.assertEqual(f[0]["remedy"], "See scanner output for remediation")
+        _, f = self._parse(item(solution="s" * 2000))
+        self.assertEqual(len(f[0]["remedy"]), 500)
+        self.assertTrue(f[0]["remedy"].endswith("..."))
+
+    def test_invalid_item_debug_line(self):
+        with self.assertLogs("scanner_translators.nessus_xml_translator", level="DEBUG") as logs:
+            self._parse(item(plugin_id=777, extra_attrs={"severity": "9"}) + item(plugin_id=1))
+        self.assertTrue(any("777" in line and "severity" in line for line in logs.output))
+
+    def test_item_findings_callable_directly(self):
+        from defusedxml import ElementTree as safe_et
+        element = safe_et.fromstring(item(cves=("CVE-1",)))
+        t = _translator()
+        self.assertEqual(len(t._item_findings(element)), 1)
+        self.assertEqual(set(t.last_stats), {
+            "hosts", "items", "informational_skipped", "invalid_items", "invalid_hosts",
+            "duplicates_merged", "findings", "assets"})
+
+    def test_impossible_date_is_none(self):
+        _, f = self._parse(item(vuln_publication_date="2024/13/45"))
+        self.assertIsNone(f[0]["published_date_time"])
+
+    def test_long_plugin_and_service_names_are_cut(self):
+        _, f = self._parse(item(plugin_name="p" * 600, svc_name="v" * 600))
+        self.assertEqual(len(f[0]["details"]["plugin_name"]), 500)
+        self.assertEqual(len(f[0]["details"]["svc_name"]), 500)
+
+    def test_repeated_cve_in_one_item_is_one_finding(self):
+        t, f = self._parse(item(cves=("CVE-2024-1", "CVE-2024-1")))
+        self.assertEqual(len(f), 1)
+        self.assertEqual(t.last_stats["duplicates_merged"], 0)
 
     def test_summary_log_line(self):
         with self.assertLogs("scanner_translators.nessus_xml_translator", level="INFO") as logs:
