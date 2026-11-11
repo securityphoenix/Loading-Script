@@ -12,9 +12,11 @@ if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
 from scanner_translators.base_translator import ScannerConfig
-from scanner_translators.nessus_xml_translator import NessusParseError, NessusXMLTranslator
+from scanner_translators.nessus_xml_translator import (
+    NessusEmptyScan, NessusParseError, NessusXMLTranslator,
+)
 from tests.unit_tests.nessus_fixtures import (
-    BILLION_LAUGHS, XXE_FILE, item, nessus, one_host, write,
+    BILLION_LAUGHS, XXE_FILE, item, nessus, one_host, tags, write,
 )
 
 DATA = ROOT / "unit_tests" / "test_data" / "nessus"
@@ -87,6 +89,37 @@ class TestNessusDetectionAndSafeParsing(unittest.TestCase):
             t.parse_file(write(".nessus", text))
         tags = [c.args[0].tag for c in spy.call_args_list]
         self.assertEqual((tags.count("ReportItem"), tags.count("ReportHost")), (4, 3))
+
+
+class TestNessusAssets(unittest.TestCase):
+    def test_host_attributes_from_sample(self):
+        assets = _translator().parse_file(str(DATA / "nessus_with_cvssv3.xml"))
+        self.assertEqual(len(assets), 1)
+        self.assertEqual(assets[0].asset_type, "INFRA")
+        self.assertIn("ip", assets[0].attributes)
+        self.assertIn({"key": "scanner", "value": "tenable-nessus"}, assets[0].tags)
+
+    def test_host_without_properties_uses_report_host_name(self):
+        a = _translator().parse_file(write(".nessus", nessus(one_host(name="10.0.0.5", props="", items=item()))))
+        self.assertEqual(a[0].attributes["ip"], "10.0.0.5")
+        a = _translator().parse_file(write(".nessus", nessus(one_host(name="web01", props="", items=item()))))
+        self.assertEqual(a[0].attributes["hostname"], "web01")
+
+    def test_same_host_in_two_reports_is_one_asset(self):
+        text = nessus(one_host(items=item(plugin_id=1)), one_host(items=item(plugin_id=2)))
+        assets = _translator().parse_file(write(".nessus", text))
+        self.assertEqual(len(assets), 1)
+        self.assertEqual(sorted(f["name"] for f in assets[0].findings), ["Plugin-1", "Plugin-2"])
+
+    def test_mac_and_os_take_first_line(self):
+        props = tags(**{"host-ip": "10.0.0.5", "mac-address": "aa:bb\ncc:dd",
+                        "operating-system": "Win 2019\nWin 2016"})
+        attrs = _translator().parse_file(write(".nessus", nessus(one_host(props=props, items=item()))))[0].attributes
+        self.assertEqual((attrs["macAddress"], attrs["operatingSystem"]), ("aa:bb", "Win 2019"))
+
+    def test_no_hosts_is_empty_scan(self):
+        with self.assertRaises(NessusEmptyScan):
+            _translator().parse_file(write(".nessus", nessus("")))
 
 
 if __name__ == "__main__":
