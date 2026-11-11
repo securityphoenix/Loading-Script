@@ -179,6 +179,7 @@ class TestNessusFindings(unittest.TestCase):
         with self.assertRaises(NessusEmptyScan):
             _translator().parse_file(str(DATA / "nessus_many_vuln.xml"))
 
+    @unittest.skipUnless(_HAS_CUSTOM_OPTIONS, "ScannerConfig has no custom_options")
     def test_informational_included_when_option_set(self):
         for value in ("true", "YES", "1"):
             assets = _translator(include_informational=value).parse_file(str(DATA / "nessus_many_vuln.xml"))
@@ -222,6 +223,7 @@ class TestNessusFindings(unittest.TestCase):
         self.assertNotIn("AAAAAAAAAA", json.dumps(f))
         self.assertNotIn("secret-host", json.dumps(f))
 
+    @unittest.skipUnless(_HAS_CUSTOM_OPTIONS, "ScannerConfig has no custom_options")
     def test_plugin_output_sent_only_when_enabled(self):
         text = nessus(one_host(items=item(plugin_output="o" * 900)))
         f = _translator(include_plugin_output="true").parse_file(write(".nessus", text))[0].findings[0]
