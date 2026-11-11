@@ -4,6 +4,7 @@
 import json
 import subprocess
 import sys
+import tempfile
 import unittest
 from pathlib import Path
 from unittest.mock import MagicMock, patch
@@ -296,6 +297,38 @@ class TestNessusFindings(unittest.TestCase):
         with self.assertLogs("scanner_translators.nessus_xml_translator", level="INFO") as logs:
             _translator().parse_file(str(DATA / "nessus_with_cvssv3.xml"))
         self.assertTrue(any("informational_skipped=23" in line and "findings=142" in line for line in logs.output))
+
+
+class TestNessusCsvXmlParity(unittest.TestCase):
+    def test_same_name_severity_location_as_tenable_csv(self):
+        from scanner_translators.tenable_translator import TenableTranslator
+        xml = write(".nessus", nessus(one_host(items=(
+            item(severity=3, plugin_id=10, port="443", protocol="tcp",
+                 plugin_name="Weak TLS", cves=("CVE-2024-1", "CVE-2024-2"))
+            + item(severity=2, plugin_id=11, port="0", protocol="tcp", plugin_name="Banner leak")))))
+        header = "Plugin ID,CVE,CVSS,Risk,Host,Protocol,Port,Name,Synopsis,Description,Solution"
+        rows = [
+            "10,CVE-2024-1,7.5,High,10.0.0.5,tcp,443,Weak TLS,Short.,Long.,Fix it.",
+            "10,CVE-2024-2,7.5,High,10.0.0.5,tcp,443,Weak TLS,Short.,Long.,Fix it.",
+            "11,,5.0,Medium,10.0.0.5,tcp,0,Banner leak,Short.,Long.,Fix it.",
+        ]
+        handle = tempfile.NamedTemporaryFile(mode="w", suffix=".csv", delete=False, encoding="utf-8")
+        handle.write("\n".join([header] + rows) + "\n")
+        handle.close()
+        tag_config = MagicMock()
+        tag_config.get_all_tags.return_value = []
+        kwargs = {"custom_options": {}} if _HAS_CUSTOM_OPTIONS else {}
+        csv_translator = TenableTranslator(
+            ScannerConfig(scanner_type="tenable", asset_type="INFRA", **kwargs), tag_config)
+
+        def keys(assets):
+            return {(f["name"], f["severity"], f["location"])
+                    for a in assets for f in a.findings}
+
+        xml_keys = keys(_translator().parse_file(xml))
+        csv_keys = keys(csv_translator.parse_file(handle.name))
+        self.assertEqual(len(xml_keys), 3)
+        self.assertEqual(xml_keys, csv_keys)
 
 
 if __name__ == "__main__":
