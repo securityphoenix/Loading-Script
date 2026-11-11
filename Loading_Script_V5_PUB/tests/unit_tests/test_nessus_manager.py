@@ -14,12 +14,12 @@ if str(ROOT) not in sys.path:
 
 from phoenix_import_enhanced import ImportSession
 from phoenix_multi_scanner_enhanced import EnhancedMultiScannerImportManager
-from tests.unit_tests.nessus_fixtures import item, nessus, one_host, write
+from tests.unit_tests.nessus_fixtures import item, nessus, one_host, TempFiles
 
 DATA = ROOT / "unit_tests" / "test_data" / "nessus"
 
 
-class TestNessusManager(unittest.TestCase):
+class TestNessusManager(TempFiles, unittest.TestCase):
     def setUp(self):
         self._cwd = os.getcwd()
         self._tmp = tempfile.TemporaryDirectory()
@@ -50,8 +50,28 @@ class TestNessusManager(unittest.TestCase):
     def test_scanner_tenable_on_nessus_file_uses_xml_translator(self):
         result = self.manager.process_scanner_file_enhanced(str(DATA / "nessus_with_cvssv3.xml"), scanner_type="tenable")
         self.assertTrue(result["success"])
+        self.assertEqual(result["scanner_type"], "nessus")
         assets = self.importer_mock.call_args.args[0]  # the patched import method
         self.assertEqual(sum(len(a.findings) for a in assets), 142)
+
+    def test_scanner_tenable_on_tenable_csv_keeps_tenable_translator(self):
+        csv = str(DATA / "tenable_many_vuln.csv")
+        with patch("scanner_translators.nessus_xml_translator.NessusXMLTranslator.parse_file") as nessus_parse, \
+                patch("scanner_translators.tenable_translator.TenableTranslator.parse_file",
+                      autospec=True, side_effect=lambda self_, path: []) as tenable_parse:
+            self.manager.process_scanner_file_enhanced(csv, scanner_type="tenable")
+        nessus_parse.assert_not_called()
+        tenable_parse.assert_called_once()
+
+    def test_non_nessus_xml_with_scanner_nessus_fails_without_post(self):
+        result = self.manager.process_scanner_file_enhanced(
+            self.write(".nessus", "<ASSET_DATA_REPORT/>"), scanner_type="nessus")
+        self.assertFalse(result["success"])
+        self.importer_mock.assert_not_called()
+
+    def test_empty_scan_result_has_an_assessment_name(self):
+        result = self.manager.process_scanner_file_enhanced(str(DATA / "nessus_many_vuln.xml"))
+        self.assertTrue(isinstance(result["assessment_name"], str) and result["assessment_name"])
 
     def test_tenable_csv_not_taken_by_nessus(self):
         # Auto-detect picks QualysTranslator for this CSV before and after Task 4 (Qualys sits ahead
@@ -63,7 +83,7 @@ class TestNessusManager(unittest.TestCase):
 
     def test_truncated_file_fails_without_post(self):
         text = nessus(one_host(items=item()))
-        result = self.manager.process_scanner_file_enhanced(write(".nessus", text[: len(text) // 2]))
+        result = self.manager.process_scanner_file_enhanced(self.write(".nessus", text[: len(text) // 2]))
         self.assertFalse(result["success"])
         self.assertIn("Nessus XML parse failed", result["error"])
         self.importer_mock.assert_not_called()
@@ -74,7 +94,7 @@ class TestNessusManager(unittest.TestCase):
         self.importer_mock.assert_not_called()
 
     def test_folder_mode_lists_nessus_files(self):
-        folder = Path(tempfile.mkdtemp())
+        folder = Path(self.tmp_dir())
         (folder / "a.nessus").write_text(nessus(one_host(items=item())))
         (folder / "b.NESSUS").write_text(nessus(one_host(items=item())))
         with patch.object(self.manager, "process_scanner_file_enhanced",

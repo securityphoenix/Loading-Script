@@ -1,5 +1,7 @@
 """String builders for Nessus (.nessus) XML test files, shared by all Nessus tests."""
 
+import os
+import shutil
 import tempfile
 from html import escape
 from typing import Dict, Optional, Sequence
@@ -79,3 +81,17 @@ def write(suffix: str, text: str) -> str:
     handle.write(text)
     handle.close()
     return handle.name
+
+
+class TempFiles:
+    """TestCase mixin: temp files and folders that are removed when the test ends."""
+
+    def write(self, suffix: str, text: str) -> str:
+        path = write(suffix, text)
+        self.addCleanup(lambda: os.path.exists(path) and os.unlink(path))
+        return path
+
+    def tmp_dir(self) -> str:
+        path = tempfile.mkdtemp()
+        self.addCleanup(shutil.rmtree, path, True)
+        return path

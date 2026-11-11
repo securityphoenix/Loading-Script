@@ -83,7 +83,7 @@ class NessusXMLTranslator(ScannerTranslator):
         """Free an element the translator is done with."""
         elem.clear()
 
-    def _events(self, file_path: str) -> Iterator[Tuple[str, Any]]:
+    def _events(self, file_path: str) -> Iterator[Tuple[str, str, Any]]:
         name = Path(file_path).name
         try:
             from defusedxml import ElementTree as safe_et
@@ -92,8 +92,8 @@ class NessusXMLTranslator(ScannerTranslator):
                 f"Nessus XML parse failed for {name}: the defusedxml package is missing: "
                 "run pip install defusedxml"
             ) from exc
-        for _event, elem in safe_et.iterparse(file_path, events=("end",)):
-            yield elem.tag, elem
+        for event, elem in safe_et.iterparse(file_path, events=("start", "end")):
+            yield event, elem.tag, elem
 
     @staticmethod
     def _first_line(value: Any) -> str:
@@ -169,7 +169,7 @@ class NessusXMLTranslator(ScannerTranslator):
         if synopsis and description:
             text = f"{synopsis}\n\n{description}"
         else:
-            text = synopsis or description or plugin_name
+            text = synopsis or description or plugin_name or f"Plugin-{plugin_id}"
         remedy = self._child_text(item, "solution") or "See scanner output for remediation"
         cwes = []
         for cwe in item.findall("cwe"):
@@ -252,8 +252,16 @@ class NessusXMLTranslator(ScannerTranslator):
         indexes: Dict[str, Dict[Tuple[str, str], Dict[str, Any]]] = {}
         props: Dict[str, str] = {}
         findings: List[Dict[str, Any]] = []
+        in_host = False
+        root_tag = ""
+        conflicts = 0
         try:
-            for tag, elem in self._events(file_path):
+            for event, tag, elem in self._events(file_path):
+                if event == "start":
+                    if tag == "ReportHost":
+                        in_host = True
+                    continue
+                root_tag = tag
                 if tag == "attachment":
                     # The parser still reads the text of one attachment into memory once.
                     self._release(elem)
@@ -264,9 +272,13 @@ class NessusXMLTranslator(ScannerTranslator):
                     self._release(elem)
                 elif tag == "ReportItem":
                     stats["items"] += 1
-                    findings.extend(self._item_findings(elem))
+                    if in_host:
+                        findings.extend(self._item_findings(elem))
+                    else:
+                        self._invalid(elem, "item outside ReportHost")
                     self._release(elem)
                 elif tag == "ReportHost":
+                    in_host = False
                     stats["hosts"] += 1
                     attrs = self._host_attributes(elem.get("name", ""), props)
                     key = self._asset_key(attrs)
@@ -283,6 +295,9 @@ class NessusXMLTranslator(ScannerTranslator):
                             assets[key] = asset
                             indexes[key] = {}
                         else:
+                            if any(k in asset.attributes and asset.attributes[k] != v
+                                   for k, v in attrs.items()):
+                                conflicts += 1
                             for k, v in attrs.items():
                                 asset.attributes.setdefault(k, v)
                         self._add_findings(asset, indexes[key], findings)
@@ -290,13 +305,16 @@ class NessusXMLTranslator(ScannerTranslator):
                     self._release(elem)
         except (DefusedXmlException, ET.ParseError) as exc:
             raise NessusParseError(f"Nessus XML parse failed for {name}: {exc}") from exc
+        if root_tag != ROOT_TAG:
+            raise NessusParseError(
+                f"Nessus XML parse failed for {name}: root element is <{root_tag}>, not {ROOT_TAG}"
+            )
         result: List[AssetData] = []
         for asset in assets.values():
-            asset = self.ensure_asset_has_findings(asset)
-            if asset.findings:
-                result.append(asset)
-            else:
+            if not asset.findings:
                 without_findings += 1
+                continue
+            result.append(self.ensure_asset_has_findings(asset))
         stats["assets"] = len(result)
         stats["findings"] = sum(len(a.findings) for a in result)
         logger.info(
@@ -306,6 +324,8 @@ class NessusXMLTranslator(ScannerTranslator):
             stats["invalid_items"], stats["invalid_hosts"], stats["duplicates_merged"],
             stats["findings"], stats["assets"],
         )
+        if conflicts:
+            logger.info("Nessus XML %s: merged hosts with conflicting attributes=%d", name, conflicts)
         if not result:
             raise NessusEmptyScan(
                 f"Nessus file {name} holds no importable finding",

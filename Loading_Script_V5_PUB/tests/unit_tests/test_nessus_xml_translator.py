@@ -4,7 +4,6 @@
 import json
 import subprocess
 import sys
-import tempfile
 import unittest
 from pathlib import Path
 from unittest.mock import MagicMock, patch
@@ -18,7 +17,7 @@ from scanner_translators.nessus_xml_translator import (
     NessusEmptyScan, NessusParseError, NessusXMLTranslator,
 )
 from tests.unit_tests.nessus_fixtures import (
-    BILLION_LAUGHS, XXE_FILE, item, nessus, one_host, tags, write,
+    BILLION_LAUGHS, XXE_FILE, item, nessus, one_host, tags, TempFiles,
 )
 
 DATA = ROOT / "unit_tests" / "test_data" / "nessus"
@@ -35,37 +34,37 @@ def _translator(**custom_options) -> NessusXMLTranslator:
     )
 
 
-class TestNessusDetectionAndSafeParsing(unittest.TestCase):
+class TestNessusDetectionAndSafeParsing(TempFiles, unittest.TestCase):
     def test_can_handle_nessus_files(self):
         self.assertTrue(_translator().can_handle(str(DATA / "nessus_with_cvssv3.xml")))
-        self.assertTrue(_translator().can_handle(write(".nessus", nessus(one_host(items=item())))))
-        self.assertTrue(_translator().can_handle(write(".NESSUS", nessus(one_host(items=item())))))
+        self.assertTrue(_translator().can_handle(self.write(".nessus", nessus(one_host(items=item())))))
+        self.assertTrue(_translator().can_handle(self.write(".NESSUS", nessus(one_host(items=item())))))
 
     def test_rejects_other_files(self):
-        self.assertFalse(_translator().can_handle(write(".xml", "<ASSET_DATA_REPORT/>")))
-        self.assertFalse(_translator().can_handle(write(".xml", "<issues/>")))
-        self.assertFalse(_translator().can_handle(write(".csv", "Plugin ID,Host\n")))
-        self.assertFalse(_translator().can_handle(write(".nessus", "")))
+        self.assertFalse(_translator().can_handle(self.write(".xml", "<ASSET_DATA_REPORT/>")))
+        self.assertFalse(_translator().can_handle(self.write(".xml", "<issues/>")))
+        self.assertFalse(_translator().can_handle(self.write(".csv", "Plugin ID,Host\n")))
+        self.assertFalse(_translator().can_handle(self.write(".nessus", "")))
         self.assertFalse(_translator().can_handle("/no/such/file.nessus"))
 
     def test_truncated_file_raises(self):
         text = nessus(one_host(items=item()))
         with self.assertRaises(NessusParseError):
-            _translator().parse_file(write(".nessus", text[: len(text) // 2]))
+            _translator().parse_file(self.write(".nessus", text[: len(text) // 2]))
 
     def test_entity_expansion_raises(self):
         with self.assertRaises(NessusParseError):
-            _translator().parse_file(write(".nessus", BILLION_LAUGHS))
+            _translator().parse_file(self.write(".nessus", BILLION_LAUGHS))
 
     def test_external_entity_raises_and_reads_nothing(self):
-        path = write(".nessus", XXE_FILE)
+        path = self.write(".nessus", XXE_FILE)
         with patch("builtins.open", wraps=open) as spy:
             with self.assertRaises(NessusParseError):
                 _translator().parse_file(path)
         self.assertNotIn("/etc/passwd", [str(c.args[0]) for c in spy.call_args_list if c.args])
 
     def test_package_imports_without_defusedxml(self):
-        path = write(".nessus", nessus(one_host(items=item())))
+        path = self.write(".nessus", nessus(one_host(items=item())))
         code = (
             "import sys; sys.modules['defusedxml'] = None; sys.path.insert(0, %r);"
             "import scanner_translators;"
@@ -88,12 +87,12 @@ class TestNessusDetectionAndSafeParsing(unittest.TestCase):
             one_host(name="10.0.0.3", items=item(plugin_id=4)),
         )
         with patch.object(t, "_release", wraps=t._release) as spy:
-            t.parse_file(write(".nessus", text))
+            t.parse_file(self.write(".nessus", text))
         tags = [c.args[0].tag for c in spy.call_args_list]
         self.assertEqual((tags.count("ReportItem"), tags.count("ReportHost")), (4, 3))
 
 
-class TestNessusAssets(unittest.TestCase):
+class TestNessusAssets(TempFiles, unittest.TestCase):
     def test_host_attributes_from_sample(self):
         assets = _translator().parse_file(str(DATA / "nessus_with_cvssv3.xml"))
         self.assertEqual(len(assets), 1)
@@ -104,29 +103,29 @@ class TestNessusAssets(unittest.TestCase):
         self.assertIn({"key": "scanner", "value": "tenable-nessus"}, assets[0].tags)
 
     def test_host_without_properties_uses_report_host_name(self):
-        a = _translator().parse_file(write(".nessus", nessus(one_host(name="10.0.0.5", props="", items=item()))))
+        a = _translator().parse_file(self.write(".nessus", nessus(one_host(name="10.0.0.5", props="", items=item()))))
         self.assertEqual(a[0].attributes["ip"], "10.0.0.5")
-        a = _translator().parse_file(write(".nessus", nessus(one_host(name="web01", props="", items=item()))))
+        a = _translator().parse_file(self.write(".nessus", nessus(one_host(name="web01", props="", items=item()))))
         self.assertEqual(a[0].attributes["hostname"], "web01")
 
     def test_same_host_in_two_reports_is_one_asset(self):
         text = nessus(one_host(items=item(plugin_id=1)), one_host(items=item(plugin_id=2)))
-        assets = _translator().parse_file(write(".nessus", text))
+        assets = _translator().parse_file(self.write(".nessus", text))
         self.assertEqual(len(assets), 1)
         self.assertEqual(sorted(f["name"] for f in assets[0].findings), ["Plugin-1", "Plugin-2"])
 
     def test_mac_and_os_take_first_line(self):
         props = tags(**{"host-ip": "10.0.0.5", "mac-address": "aa:bb\ncc:dd",
                         "operating-system": "Win 2019\nWin 2016"})
-        attrs = _translator().parse_file(write(".nessus", nessus(one_host(props=props, items=item()))))[0].attributes
+        attrs = _translator().parse_file(self.write(".nessus", nessus(one_host(props=props, items=item()))))[0].attributes
         self.assertEqual((attrs["macAddress"], attrs["operatingSystem"]), ("aa:bb", "Win 2019"))
 
     def test_no_hosts_is_empty_scan(self):
         with self.assertRaises(NessusEmptyScan):
-            _translator().parse_file(write(".nessus", nessus("")))
+            _translator().parse_file(self.write(".nessus", nessus("")))
 
     def _one(self, text):
-        return _translator().parse_file(write(".nessus", text))
+        return _translator().parse_file(self.write(".nessus", text))
 
     def test_netbios_only_sets_hostname(self):
         props = tags(**{"host-ip": "10.0.0.5", "netbios-name": "WINBOX"})
@@ -166,7 +165,7 @@ class TestNessusAssets(unittest.TestCase):
         self.assertEqual(assets[0].attributes["macAddress"], "aa:bb:cc")
 
 
-class TestNessusFindings(unittest.TestCase):
+class TestNessusFindings(TempFiles, unittest.TestCase):
     def test_counts_on_cvssv3_sample(self):
         t = _translator()
         findings = t.parse_file(str(DATA / "nessus_with_cvssv3.xml"))[0].findings
@@ -188,18 +187,18 @@ class TestNessusFindings(unittest.TestCase):
 
     def test_one_finding_per_cve(self):
         text = nessus(one_host(items=item(severity=3, plugin_id=1001, cves=("CVE-2024-1", "CVE-2024-2"))))
-        findings = _translator().parse_file(write(".nessus", text))[0].findings
+        findings = _translator().parse_file(self.write(".nessus", text))[0].findings
         self.assertEqual([f["name"] for f in findings], ["CVE-2024-1", "CVE-2024-2"])
         self.assertEqual({f["severity"] for f in findings}, {"8.0"})
         self.assertEqual(findings[0]["details"]["plugin_id"], "1001")
 
     def test_item_without_cve_and_port_zero(self):
-        findings = _translator().parse_file(write(".nessus", nessus(one_host(items=item(plugin_id=42, port="0")))))[0].findings
+        findings = _translator().parse_file(self.write(".nessus", nessus(one_host(items=item(plugin_id=42, port="0")))))[0].findings
         self.assertEqual((findings[0]["name"], findings[0]["location"]), ("Plugin-42", "tcp/0"))
 
     def test_duplicate_keeps_highest_severity(self):
         items = item(severity=2, plugin_id=1, cves=("CVE-2024-9",)) + item(severity=4, plugin_id=2, cves=("CVE-2024-9",))
-        f = _translator().parse_file(write(".nessus", nessus(one_host(items=items))))[0].findings
+        f = _translator().parse_file(self.write(".nessus", nessus(one_host(items=items))))[0].findings
         self.assertEqual(len(f), 1)
         self.assertEqual((f[0]["severity"], f[0]["details"]["plugin_ids"]), ("10.0", ["2", "1"]))
 
@@ -207,13 +206,13 @@ class TestNessusFindings(unittest.TestCase):
         items = (item(extra_attrs={"severity": "9"}) + item(severity=2, plugin_id="abc")
                  + item(plugin_id=7, extra_attrs={"port": "abc", "protocol": None}))
         t = _translator()
-        f = t.parse_file(write(".nessus", nessus(one_host(items=items))))[0].findings
+        f = t.parse_file(self.write(".nessus", nessus(one_host(items=items))))[0].findings
         self.assertEqual(t.last_stats["invalid_items"], 2)
         self.assertEqual(len(f), 1)
         self.assertEqual(f[0]["location"], "tcp/0")
 
     def test_text_rules(self):
-        f = _translator().parse_file(write(".nessus", nessus(one_host(items=item(
+        f = _translator().parse_file(self.write(".nessus", nessus(one_host(items=item(
             synopsis=None, description="x" * 2000, cwes=("79", "n/a"), vuln_publication_date="2024/03/05",
             attachment="A" * 10_000, plugin_output="secret-host")))))[0].findings[0]
         self.assertEqual(len(f["description"]), 500)
@@ -226,12 +225,12 @@ class TestNessusFindings(unittest.TestCase):
     @unittest.skipUnless(_HAS_CUSTOM_OPTIONS, "ScannerConfig has no custom_options")
     def test_plugin_output_sent_only_when_enabled(self):
         text = nessus(one_host(items=item(plugin_output="o" * 900)))
-        f = _translator(include_plugin_output="true").parse_file(write(".nessus", text))[0].findings[0]
+        f = _translator(include_plugin_output="true").parse_file(self.write(".nessus", text))[0].findings[0]
         self.assertEqual(len(f["details"]["plugin_output"]), 500)
 
     def _parse(self, text, **options):
         t = _translator(**options)
-        return t, t.parse_file(write(".nessus", nessus(one_host(items=text))))[0].findings
+        return t, t.parse_file(self.write(".nessus", nessus(one_host(items=text))))[0].findings
 
     def test_plugin_output_absent_when_option_off(self):
         _, f = self._parse(item(plugin_output="out"))
@@ -301,10 +300,10 @@ class TestNessusFindings(unittest.TestCase):
         self.assertTrue(any("informational_skipped=23" in line and "findings=142" in line for line in logs.output))
 
 
-class TestNessusCsvXmlParity(unittest.TestCase):
+class TestNessusCsvXmlParity(TempFiles, unittest.TestCase):
     def test_same_name_severity_location_as_tenable_csv(self):
         from scanner_translators.tenable_translator import TenableTranslator
-        xml = write(".nessus", nessus(one_host(items=(
+        xml = self.write(".nessus", nessus(one_host(items=(
             item(severity=3, plugin_id=10, port="443", protocol="tcp",
                  plugin_name="Weak TLS", cves=("CVE-2024-1", "CVE-2024-2"))
             + item(severity=2, plugin_id=11, port="0", protocol="tcp", plugin_name="Banner leak")))))
@@ -314,9 +313,7 @@ class TestNessusCsvXmlParity(unittest.TestCase):
             "10,CVE-2024-2,7.5,High,10.0.0.5,tcp,443,Weak TLS,Short.,Long.,Fix it.",
             "11,,5.0,Medium,10.0.0.5,tcp,0,Banner leak,Short.,Long.,Fix it.",
         ]
-        handle = tempfile.NamedTemporaryFile(mode="w", suffix=".csv", delete=False, encoding="utf-8")
-        handle.write("\n".join([header] + rows) + "\n")
-        handle.close()
+        csv_path = self.write(".csv", "\n".join([header] + rows) + "\n")
         tag_config = MagicMock()
         tag_config.get_all_tags.return_value = []
         kwargs = {"custom_options": {}} if _HAS_CUSTOM_OPTIONS else {}
@@ -328,9 +325,60 @@ class TestNessusCsvXmlParity(unittest.TestCase):
                     for a in assets for f in a.findings}
 
         xml_keys = keys(_translator().parse_file(xml))
-        csv_keys = keys(csv_translator.parse_file(handle.name))
+        csv_keys = keys(csv_translator.parse_file(csv_path))
         self.assertEqual(len(xml_keys), 3)
         self.assertEqual(xml_keys, csv_keys)
+
+
+class TestNessusStructureAndHardening(TempFiles, unittest.TestCase):
+    def test_non_nessus_root_raises(self):
+        for text in ("<ASSET_DATA_REPORT/>",
+                     "<Foo><Report><ReportHost name='10.0.0.5'>" + item() + "</ReportHost></Report></Foo>"):
+            with self.assertRaises(NessusParseError) as ctx:
+                _translator().parse_file(self.write(".nessus", text))
+            self.assertIn("not NessusClientData_v2", str(ctx.exception))
+
+    def test_item_without_any_text_falls_back_to_plugin_id(self):
+        f = _translator().parse_file(self.write(".nessus", nessus(one_host(items=item(
+            plugin_id=55, synopsis=None, description=None, plugin_name=""))))) [0].findings[0]
+        self.assertEqual(f["description"], "Plugin-55")
+
+    def test_item_outside_report_host_is_invalid(self):
+        text = ('<?xml version="1.0" ?><NessusClientData_v2><Report name="r">' + item(plugin_id=999)
+                + one_host(items=item(plugin_id=1)) + "</Report></NessusClientData_v2>")
+        t = _translator()
+        with self.assertLogs("scanner_translators.nessus_xml_translator", level="DEBUG") as logs:
+            f = t.parse_file(self.write(".nessus", text))[0].findings
+        self.assertEqual([x["name"] for x in f], ["Plugin-1"])
+        self.assertEqual(t.last_stats["invalid_items"], 1)
+        self.assertTrue(any("999" in line and "outside ReportHost" in line for line in logs.output))
+
+    def test_conflicting_merge_is_logged(self):
+        p1 = tags(**{"host-ip": "10.0.0.5", "operating-system": "Win 2019"})
+        p2 = tags(**{"host-ip": "10.0.0.5", "operating-system": "Win 2016"})
+        text = nessus(one_host(props=p1, items=item(plugin_id=1)), one_host(props=p2, items=item(plugin_id=2)))
+        t = _translator()
+        with self.assertLogs("scanner_translators.nessus_xml_translator", level="INFO") as logs:
+            t.parse_file(self.write(".nessus", text))
+        self.assertTrue(any("merged hosts with conflicting attributes=1" in line for line in logs.output))
+        self.assertEqual(set(t.last_stats), {
+            "hosts", "items", "informational_skipped", "invalid_items", "invalid_hosts",
+            "duplicates_merged", "findings", "assets"})
+
+    def test_no_conflict_line_when_attributes_agree(self):
+        text = nessus(one_host(items=item(plugin_id=1)), one_host(items=item(plugin_id=2)))
+        with self.assertLogs("scanner_translators.nessus_xml_translator", level="INFO") as logs:
+            _translator().parse_file(self.write(".nessus", text))
+        self.assertFalse(any("conflicting" in line for line in logs.output))
+
+    def test_inventory_option_never_adds_placeholder_to_empty_asset(self):
+        tag_config = MagicMock()
+        tag_config.get_all_tags.return_value = []
+        kwargs = {"custom_options": {}} if _HAS_CUSTOM_OPTIONS else {}
+        t = NessusXMLTranslator(ScannerConfig(scanner_type="nessus", asset_type="INFRA", **kwargs),
+                                tag_config, create_inventory_assets=True)
+        with self.assertRaises(NessusEmptyScan):
+            t.parse_file(self.write(".nessus", nessus(one_host(items=item(severity=0)))))
 
 
 if __name__ == "__main__":

@@ -681,6 +681,7 @@ class EnhancedMultiScannerImportManager:
                     if nessus_translator is not None and nessus_translator.can_handle(file_path):
                         logger.info("--scanner tenable given for a Nessus XML file: using NessusXMLTranslator")
                         translator = nessus_translator
+                        detected_scanner = 'nessus'
                 if not translator:
                     logger.warning(f"⚠️ No hard-coded translator found for '{detected_scanner}', using YAML fallback")
                     translator = self.detect_scanner_type(file_path)
@@ -753,7 +754,8 @@ class EnhancedMultiScannerImportManager:
                     'success': True,
                     'file_path': file_path,
                     'scanner_type': detected_scanner,
-                    'assessment_name': assessment_name,
+                    'assessment_name': (assessment_name
+                                        or self._generate_assessment_name(file_path, detected_scanner)),
                     'assets_imported': 0,
                     'vulnerabilities_imported': 0,
                     'empty_scan': True,
