@@ -120,13 +120,14 @@ handle the file. The first one that says yes wins.
 flowchart LR
     F["scan file"] --> U["ConfigurableScannerTranslator<br/>(universal, YAML-driven)"]
     U -->|no| G["Grype"] -->|no| T["Trivy"] -->|no| A["Aqua"]
-    A -->|no| J["JFrog Xray"] -->|no| Q["Qualys"] -->|no| S["SonarQube"] -->|no| N["Tenable"]
+    A -->|no| J["JFrog Xray"] -->|no| V["Nessus XML"] -->|no| Q["Qualys"] -->|no| S["SonarQube"] -->|no| N["Tenable"]
     N -->|no| X["No match: the run stops<br/>and tells you to pass --scanner"]
     U -->|yes| W["parse_file()"]
     G -->|yes| W
     T -->|yes| W
     A -->|yes| W
     J -->|yes| W
+    V -->|yes| W
     Q -->|yes| W
     S -->|yes| W
     N -->|yes| W
@@ -201,10 +202,27 @@ python3 phoenix_multi_scanner_enhanced.py --config config_multi_scanner.ini \
   --file scans/grype.json --asset-type CONTAINER \
   --tag-file ci_tags.json --verify-import
 
-# Strip hostnames and IPs before sending
+# A Nessus XML export (.nessus)
 python3 phoenix_multi_scanner_enhanced.py --config config_multi_scanner.ini \
-  --file scans/nessus.xml --anonymize
+  --file scans/scan.nessus --scanner nessus
 ```
+
+#### Nessus XML
+
+The Nessus XML translator reads `.nessus` (`NessusClientData_v2`) exports: one INFRA asset per host,
+one finding per CVE (named by the CVE, or `Plugin-<pluginID>` when the plugin has none), location
+`protocol/port`. Informational findings are skipped and `plugin_output` is never sent unless you
+switch it on in the config file:
+
+```ini
+[scanner_nessus]
+include_informational = false   # true, yes or 1 sends severity 0 items as severity 1.0
+include_plugin_output = false   # true, yes or 1 sends plugin_output (cut at 500 characters)
+```
+
+A file with no findings above informational ends as a success with 0 imports and nothing is
+uploaded. A broken or non-Nessus file fails the import. Auto-detect reads UTF-8 files whose root
+element starts within the first 4 KB; for a UTF-16 export use `--scanner nessus`.
 
 | Flag | What it does |
 |---|---|
@@ -214,7 +232,7 @@ python3 phoenix_multi_scanner_enhanced.py --config config_multi_scanner.ini \
 | `--import-type` | `new` `merge` `delta`; defaults to config `import_type`, otherwise `new` |
 | `--assessment` | Assessment name. Auto-generated if you leave it out. |
 | `--tag-file` | JSON file of tags to attach to assets, for example CI metadata |
-| `--anonymize` | Replace hostnames and IP addresses before sending |
+| `--anonymize` | Not applied on the enhanced import path (this script), so it does not hide data in any import, Nessus included |
 | `--verify-import` | Read the assets back and compare the counts |
 | `--error-log` | Write a JSON report of everything that failed |
 | `--debug` | Save every request and response under `debug/` |
@@ -476,6 +494,7 @@ The tool uses a **hybrid translation system**:
 | **SSLyze Scan (JSON)** | WEB | SSL/TLS security testing |
 | **StackHawk HawkScan** | WEB | Dynamic application security |
 | **Talisman Scan** | CODE | Git secrets scanner |
+| **Nessus XML (.nessus)** | INFRA | Tenable Nessus `NessusClientData_v2` export |
 | **Tenable Scan** | INFRA | Tenable.io/Nessus vulnerability scanner |
 | **Terrascan Scan** | CLOUD | Infrastructure as Code scanner |
 | **Testssl Scan** | WEB | SSL/TLS testing tool |
