@@ -96,7 +96,9 @@ class TestNessusAssets(unittest.TestCase):
         assets = _translator().parse_file(str(DATA / "nessus_with_cvssv3.xml"))
         self.assertEqual(len(assets), 1)
         self.assertEqual(assets[0].asset_type, "INFRA")
-        self.assertIn("ip", assets[0].attributes)
+        self.assertEqual(assets[0].attributes["ip"], "44.228.249.3")
+        self.assertEqual(assets[0].attributes["fqdn"], "testphp.vulnweb.com")
+        self.assertEqual(assets[0].attributes["hostname"], "testphp.vulnweb.com")
         self.assertIn({"key": "scanner", "value": "tenable-nessus"}, assets[0].tags)
 
     def test_host_without_properties_uses_report_host_name(self):
@@ -120,6 +122,46 @@ class TestNessusAssets(unittest.TestCase):
     def test_no_hosts_is_empty_scan(self):
         with self.assertRaises(NessusEmptyScan):
             _translator().parse_file(write(".nessus", nessus("")))
+
+    def _one(self, text):
+        return _translator().parse_file(write(".nessus", text))
+
+    def test_netbios_only_sets_hostname(self):
+        props = tags(**{"host-ip": "10.0.0.5", "netbios-name": "WINBOX"})
+        attrs = self._one(nessus(one_host(props=props, items=item())))[0].attributes
+        self.assertEqual((attrs["hostname"], attrs["netbios"]), ("WINBOX", "WINBOX"))
+
+    def test_fqdn_wins_over_netbios_for_hostname(self):
+        props = tags(**{"host-ip": "10.0.0.5", "host-fqdn": "a.example.test", "netbios-name": "WINBOX"})
+        attrs = self._one(nessus(one_host(props=props, items=item())))[0].attributes
+        self.assertEqual((attrs["hostname"], attrs["fqdn"], attrs["netbios"]),
+                         ("a.example.test", "a.example.test", "WINBOX"))
+
+    def test_fqdn_and_netbios_take_first_non_empty_line(self):
+        props = tags(**{"host-ip": "10.0.0.5", "host-fqdn": "\n a.example.test \nb.example.test",
+                        "netbios-name": "\nWINBOX\nOTHER"})
+        attrs = self._one(nessus(one_host(props=props, items=item())))[0].attributes
+        self.assertEqual((attrs["fqdn"], attrs["hostname"], attrs["netbios"]),
+                         ("a.example.test", "a.example.test", "WINBOX"))
+
+    def test_unnamed_host_without_tags_is_invalid(self):
+        with self.assertRaises(NessusEmptyScan) as ctx:
+            self._one(nessus(one_host(name="", props="", items=item())))
+        self.assertEqual(ctx.exception.stats["invalid_hosts"], 1)
+
+    def test_informational_only_host_is_dropped(self):
+        with self.assertRaises(NessusEmptyScan) as ctx:
+            self._one(nessus(one_host(items=item(severity=0))))
+        self.assertEqual(ctx.exception.stats["assets_without_findings"], 1)
+
+    def test_two_blocks_merge_first_wins_and_adds_missing(self):
+        p1 = tags(**{"host-ip": "10.0.0.5", "operating-system": "Win 2019"})
+        p2 = tags(**{"host-ip": "10.0.0.5", "operating-system": "Win 2016", "mac-address": "aa:bb:cc"})
+        text = nessus(one_host(props=p1, items=item(plugin_id=1)), one_host(props=p2, items=item(plugin_id=2)))
+        assets = self._one(text)
+        self.assertEqual(len(assets), 1)
+        self.assertEqual(assets[0].attributes["operatingSystem"], "Win 2019")
+        self.assertEqual(assets[0].attributes["macAddress"], "aa:bb:cc")
 
 
 if __name__ == "__main__":
