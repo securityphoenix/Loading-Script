@@ -1,4 +1,4 @@
-"""The upload route accepts .nessus files (any case) and still refuses unknown types."""
+"""The upload route accepts .nessus files (any case), refuses .nessus with anonymize, and refuses unknown types."""
 from datetime import datetime
 from types import SimpleNamespace
 from unittest.mock import AsyncMock, MagicMock, patch
@@ -30,11 +30,11 @@ def client_and_job_manager():
         app.dependency_overrides.clear()
 
 
-def _post(client, filename):
+def _post(client, filename, **form):
     return client.post(
         "/api/v1/upload",
         files={"file": (filename, b"<NessusClientData_v2/>", "application/xml")},
-        data={"scanner_type": "auto"},
+        data={"scanner_type": "auto", **form},
     )
 
 
@@ -53,3 +53,29 @@ def test_unknown_extension_is_refused(client_and_job_manager):
     assert response.status_code == 400
     assert "File type not allowed" in response.json()["detail"]
     job_manager.create_job.assert_not_awaited()
+
+
+@pytest.mark.parametrize("filename", ["scan.nessus", "scan.NESSUS"])
+def test_nessus_upload_with_anonymize_is_refused_before_queueing(client_and_job_manager, filename):
+    client, job_manager = client_and_job_manager
+    with patch("app.workers.tasks.process_scan_file.delay") as delay:
+        response = _post(client, filename, anonymize="true")
+    assert response.status_code == 400
+    assert "anonymize is not supported" in response.json()["detail"]
+    job_manager.create_job.assert_not_awaited()
+    delay.assert_not_called()
+
+
+@pytest.mark.parametrize("filename", ["scan.xml", "scan.json"])
+def test_anonymize_still_accepted_for_other_uploads(client_and_job_manager, filename):
+    client, job_manager = client_and_job_manager
+    response = _post(client, filename, anonymize="true")
+    assert 200 <= response.status_code < 300, response.text
+    assert job_manager.create_job.await_count == 1
+
+
+def test_nessus_upload_without_anonymize_is_accepted(client_and_job_manager):
+    client, job_manager = client_and_job_manager
+    response = _post(client, "scan.nessus", anonymize="false")
+    assert 200 <= response.status_code < 300, response.text
+    assert job_manager.create_job.await_count == 1

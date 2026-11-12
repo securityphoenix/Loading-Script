@@ -4,6 +4,7 @@
 import json
 import subprocess
 import sys
+import time
 import unittest
 from pathlib import Path
 from unittest.mock import MagicMock, patch
@@ -371,14 +372,159 @@ class TestNessusStructureAndHardening(TempFiles, unittest.TestCase):
             _translator().parse_file(self.write(".nessus", text))
         self.assertFalse(any("conflicting" in line for line in logs.output))
 
-    def test_inventory_option_never_adds_placeholder_to_empty_asset(self):
+    @staticmethod
+    def _inventory_translator(enabled: bool) -> NessusXMLTranslator:
         tag_config = MagicMock()
         tag_config.get_all_tags.return_value = []
         kwargs = {"custom_options": {}} if _HAS_CUSTOM_OPTIONS else {}
-        t = NessusXMLTranslator(ScannerConfig(scanner_type="nessus", asset_type="INFRA", **kwargs),
-                                tag_config, create_inventory_assets=True)
-        with self.assertRaises(NessusEmptyScan):
-            t.parse_file(self.write(".nessus", nessus(one_host(items=item(severity=0)))))
+        return NessusXMLTranslator(ScannerConfig(scanner_type="nessus", asset_type="INFRA", **kwargs),
+                                   tag_config, create_inventory_assets=enabled)
+
+    def test_inventory_option_adds_placeholder_to_empty_asset(self):
+        t = self._inventory_translator(True)
+        assets = t.parse_file(self.write(".nessus", nessus(one_host(items=item(severity=0)))))
+        self.assertEqual(len(assets), 1)
+        self.assertEqual(assets[0].attributes["ip"], "10.0.0.5")
+        self.assertEqual(len(assets[0].findings), 1)
+        self.assertTrue(assets[0].findings[0]["details"].get("asset_inventory"))
+
+    def test_inventory_mode_switches_between_successive_calls(self):
+        path = self.write(".nessus", nessus(one_host(items=item(severity=0))))
+        for order in ((True, False, True), (False, True, False)):
+            t = self._inventory_translator(order[0])
+            for enabled in order:
+                t.create_inventory_assets = enabled
+                if enabled:
+                    assets = t.parse_file(path)
+                    self.assertEqual(len(assets[0].findings), 1)
+                    self.assertTrue(assets[0].findings[0]["details"].get("asset_inventory"))
+                else:
+                    with self.assertRaises(NessusEmptyScan):
+                        t.parse_file(path)
+
+    def test_inventory_mode_keeps_real_findings_without_placeholder(self):
+        text = nessus(one_host(name="10.0.0.1", items=item(severity=3)),
+                      one_host(name="10.0.0.2", items=item(severity=0)))
+        assets = self._inventory_translator(True).parse_file(self.write(".nessus", text))
+        by_ip = {a.attributes["ip"]: a.findings for a in assets}
+        self.assertEqual(by_ip["10.0.0.1"][0]["name"], "Plugin-42")
+        self.assertTrue(by_ip["10.0.0.2"][0]["details"].get("asset_inventory"))
+
+
+class TestNessusReviewFixes(TempFiles, unittest.TestCase):
+    def test_pathological_doctype_header_is_rejected_fast(self):
+        path = self.write(".nessus", "<!DOCTYPE" + "[]" * 100)
+        started = time.perf_counter()
+        self.assertFalse(_translator().can_handle(path))
+        self.assertLess(time.perf_counter() - started, 0.5)
+        big = self.write(".nessus", "<!DOCTYPE" + "[]" * 2100 + "<NessusClientData_v2/>")
+        started = time.perf_counter()
+        self.assertFalse(_translator().can_handle(big))
+        self.assertLess(time.perf_counter() - started, 0.5)
+
+    def test_prolog_with_declaration_comments_and_doctype_is_detected(self):
+        body = nessus(one_host(items=item())).split("?>", 1)[1]
+        for prolog in (
+            '<?xml version="1.0" encoding="UTF-8"?>\n',
+            '<?xml version="1.0"?>\n<!-- export -->\n<!-- two -->\n',
+            '<?xml version="1.0"?>\n<!DOCTYPE NessusClientData_v2>\n',
+            '<?xml version="1.0"?><!doctype NessusClientData_v2 [ <!ELEMENT x ANY> ]>\n<!-- c -->',
+            '\ufeff<?xml version="1.0"?>\n<?pi data?>\n',
+        ):
+            path = self.write(".nessus", prolog + body)
+            self.assertTrue(_translator().can_handle(path), prolog)
+        for broken in ("<!-- never closed <NessusClientData_v2/>", "<?xml never closed <NessusClientData_v2/>",
+                       "<!DOCTYPE x [ <NessusClientData_v2/>"):
+            self.assertFalse(_translator().can_handle(self.write(".nessus", broken)), broken)
+
+    def test_ip_in_report_host_name_kept_when_only_fqdn_tag(self):
+        props = tags(**{"host-fqdn": "a.example.test"})
+        attrs = _translator().parse_file(self.write(".nessus", nessus(
+            one_host(name="10.0.0.9", props=props, items=item()))))[0].attributes
+        self.assertEqual((attrs["ip"], attrs["hostname"], attrs["fqdn"]),
+                         ("10.0.0.9", "a.example.test", "a.example.test"))
+
+    def test_same_ip_with_and_without_host_ip_tag_is_one_asset(self):
+        with_ip = tags(**{"host-ip": "10.0.0.9", "host-fqdn": "a.example.test"})
+        fqdn_only = tags(**{"host-fqdn": "a.example.test"})
+        text = nessus(one_host(name="10.0.0.9", props=with_ip, items=item(plugin_id=1)),
+                      one_host(name="10.0.0.9", props=fqdn_only, items=item(plugin_id=2)))
+        assets = _translator().parse_file(self.write(".nessus", text))
+        self.assertEqual(len(assets), 1)
+        self.assertEqual(sorted(f["name"] for f in assets[0].findings), ["Plugin-1", "Plugin-2"])
+
+    def test_hostname_name_still_used_when_no_tags(self):
+        props = tags(**{"host-fqdn": "a.example.test"})
+        attrs = _translator().parse_file(self.write(".nessus", nessus(
+            one_host(name="web01", props=props, items=item()))))[0].attributes
+        self.assertEqual((attrs["hostname"], "ip" in attrs), ("a.example.test", False))
+
+    def test_finished_elements_are_detached_from_the_root(self):
+        t = _translator()
+        seen = []
+        original = t._events
+
+        def spy(path):
+            for event, tag, elem in original(path):
+                if event == "start" and not seen:
+                    seen.append(elem)
+                yield event, tag, elem
+
+        text = nessus(
+            one_host(name="10.0.0.1", items=item(plugin_id=1, attachment="A" * 100) + item(plugin_id=2)),
+            one_host(name="10.0.0.2", items=item(plugin_id=3)),
+        )
+        with patch.object(t, "_events", side_effect=spy):
+            assets = t.parse_file(self.write(".nessus", text))
+        self.assertEqual(seen[0].tag, "NessusClientData_v2")
+        self.assertEqual(len(list(seen[0])), 0)
+        self.assertEqual(sum(len(a.findings) for a in assets), 3)
+
+    def test_each_element_is_released_from_its_own_parent(self):
+        t = _translator()
+        with patch.object(t, "_release", wraps=t._release) as spy:
+            t.parse_file(self.write(".nessus", nessus(one_host(items=item(attachment="x")))))
+        pairs = [(c.args[0].tag, c.args[1].tag) for c in spy.call_args_list]
+        self.assertEqual(pairs, [("HostProperties", "ReportHost"), ("attachment", "ReportItem"),
+                                 ("ReportItem", "ReportHost"), ("ReportHost", "Report"),
+                                 ("Report", "NessusClientData_v2")])
+
+    def test_many_duplicates_merge_without_list_search(self):
+        count = 20000
+        low = "".join(item(severity=1, plugin_id=i, cves=(f"CVE-2024-{i}",)) for i in range(count))
+        high = "".join(item(severity=4, plugin_id=count + i, cves=(f"CVE-2024-{i}",)) for i in range(count))
+        path = self.write(".nessus", nessus(one_host(items=low + high)))
+        t = _translator()
+        started = time.perf_counter()
+        findings = t.parse_file(path)[0].findings
+        elapsed = time.perf_counter() - started
+        self.assertEqual(len(findings), count)
+        self.assertEqual(t.last_stats["duplicates_merged"], count)
+        self.assertEqual([f["name"] for f in findings[:3]], ["CVE-2024-0", "CVE-2024-1", "CVE-2024-2"])
+        self.assertTrue(all(f["severity"] == "10.0" for f in findings))
+        self.assertEqual(findings[5]["details"]["plugin_ids"], [str(count + 5), "5"])
+        self.assertLess(elapsed, 20)
+
+    def test_merge_never_searches_the_findings_list(self):
+        from phoenix_import_refactored import AssetData
+
+        class NoSearch(list):
+            def index(self, *args, **kwargs):
+                raise AssertionError("findings list was searched")
+
+        t = _translator()
+        asset = AssetData(asset_type="INFRA", attributes={"ip": "10.0.0.5"}, tags=[])
+        asset.findings = NoSearch()
+        index = {}
+        low = [{"name": f"CVE-{i}", "location": "tcp/1", "severity": "3.0", "details": {"plugin_id": str(i)}}
+               for i in range(50)]
+        high = [{"name": f"CVE-{i}", "location": "tcp/1", "severity": "10.0",
+                 "details": {"plugin_id": str(100 + i)}} for i in range(50)]
+        t._add_findings(asset, index, low)
+        t._add_findings(asset, index, high)
+        self.assertEqual([f["name"] for f in asset.findings], [f"CVE-{i}" for i in range(50)])
+        self.assertTrue(all(f["severity"] == "10.0" for f in asset.findings))
+        self.assertEqual(asset.findings[7]["details"]["plugin_ids"], ["107", "7"])
 
 
 if __name__ == "__main__":

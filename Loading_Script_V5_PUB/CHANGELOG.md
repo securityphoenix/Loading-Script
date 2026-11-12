@@ -16,7 +16,8 @@ See `CLAUDE.md` in this folder and `../UTILS_PUBLISH_TO_PUBLIC.md`.
   no CVE), location `protocol/port`. Informational findings are skipped by default, `plugin_output`
   is never sent by default, text is cut at 500 characters, and duplicates are merged per asset. A
   broken file fails the import and never imports a placeholder. A file with only informational
-  findings ends as a success with 0 imports and no upload.
+  findings ends as a success with 0 imports and no upload, unless `--create-inventory-assets` is
+  given: then each host is imported with an inventory placeholder.
 - **`--scanner nessus`** (also `nessus_xml`), `.nessus` files in folder mode and in the scanner
   service.
 - **Two INI options** in `[scanner_nessus]`: `include_informational` and `include_plugin_output`.
@@ -24,13 +25,15 @@ See `CLAUDE.md` in this folder and `../UTILS_PUBLISH_TO_PUBLIC.md`.
 
 ### 🔧 Changed
 
-- `--scanner tenable` on a Nessus XML file now uses the new translator.
+- `--scanner tenable` on a Nessus XML file, or on any `.nessus` file, now uses the new translator,
+  so a broken `.nessus` file fails without an upload.
 - Folder mode now also imports `.nessus` files by default.
 - New dependency `defusedxml`: run `pip install -r requirements.txt`.
 
 ### Notes
 
-- `--anonymize` is not applied by this translator or on the enhanced import path (see README).
+- `--anonymize` is not applied by this translator or on the enhanced import path (see README). The
+  scanner service refuses a `.nessus` upload with `anonymize=true` (HTTP 400).
 - Auto-detect reads UTF-8 `.nessus` files whose root element starts within the first 4 KB. UTF-16
   exports, or files with more than 4 KB of comments before the root, need `--scanner nessus`.
 - The date is the planned merge date; update it if the merge happens on another day.

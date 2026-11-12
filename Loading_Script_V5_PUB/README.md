@@ -216,13 +216,16 @@ switch it on in the config file:
 
 ```ini
 [scanner_nessus]
-include_informational = false   # true, yes or 1 sends severity 0 items as severity 1.0
-include_plugin_output = false   # true, yes or 1 sends plugin_output (cut at 500 characters)
+# true, yes or 1 sends severity 0 items as severity 1.0
+include_informational = false
+# true, yes or 1 sends plugin_output (cut at 500 characters)
+include_plugin_output = false
 ```
 
 A file with no findings above informational ends as a success with 0 imports and nothing is
-uploaded. A broken or non-Nessus file fails the import. Auto-detect reads UTF-8 files whose root
-element starts within the first 4 KB; for a UTF-16 export use `--scanner nessus`.
+uploaded; with `--create-inventory-assets` each host is imported with an inventory placeholder.
+A broken or non-Nessus file fails the import. Auto-detect reads UTF-8 files whose root element
+starts within the first 4 KB; for a UTF-16 export use `--scanner nessus`.
 
 | Flag | What it does |
 |---|---|

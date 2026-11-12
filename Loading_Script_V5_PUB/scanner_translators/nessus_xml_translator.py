@@ -25,9 +25,7 @@ logger = logging.getLogger(__name__)
 
 ROOT_TAG = "NessusClientData_v2"
 _HEAD_BYTES = 4096
-_SKIP_PROLOG = re.compile(
-    rb"\s*(?:<\?.*?\?>|<!--.*?-->|<!DOCTYPE(?:[^\[>]|\[.*?\])*>)", re.DOTALL | re.IGNORECASE
-)
+_XML_SPACE = b" \t\r\n"
 SEVERITY_MAP = {4: "10.0", 3: "8.0", 2: "5.0", 1: "3.0"}
 _STAT_KEYS = (
     "hosts", "items", "informational_skipped", "invalid_items", "invalid_hosts",
@@ -70,18 +68,54 @@ class NessusXMLTranslator(ScannerTranslator):
             return False
         if head.startswith(b"\xef\xbb\xbf"):
             head = head[3:]
-        pos = 0
-        while True:
-            match = _SKIP_PROLOG.match(head, pos)
-            if not match:
-                break
-            pos = match.end()
-        first = _FIRST_ELEMENT.match(head, pos)
+        first = _FIRST_ELEMENT.match(head, self._skip_prolog(head))
         return bool(first) and first.group(1).decode("ascii", "replace") == ROOT_TAG
 
-    def _release(self, elem) -> None:
-        """Free an element the translator is done with."""
+    @staticmethod
+    def _skip_prolog(head: bytes) -> int:
+        """Offset after the XML declaration, comments, processing instructions and DOCTYPE.
+
+        One forward pass over ``head`` (no backtracking): each construct is closed with a plain
+        search from the current offset. An unclosed construct stops the scan there, so the root
+        check that follows fails.
+        """
+        pos, size = 0, len(head)
+        while True:
+            while pos < size and head[pos] in _XML_SPACE:
+                pos += 1
+            if head.startswith(b"<?", pos):
+                end = head.find(b"?>", pos + 2)
+                if end < 0:
+                    return pos
+                pos = end + 2
+            elif head.startswith(b"<!--", pos):
+                end = head.find(b"-->", pos + 4)
+                if end < 0:
+                    return pos
+                pos = end + 3
+            elif head[pos:pos + 9].upper() == b"<!DOCTYPE":
+                i, in_subset = pos + 9, False
+                while i < size:
+                    char = head[i]
+                    if in_subset:
+                        if char == 0x5D:  # ]
+                            in_subset = False
+                    elif char == 0x5B:  # [
+                        in_subset = True
+                    elif char == 0x3E:  # >
+                        break
+                    i += 1
+                if i >= size:
+                    return pos
+                pos = i + 1
+            else:
+                return pos
+
+    def _release(self, elem, parent=None) -> None:
+        """Free an element the translator is done with and detach it from its parent."""
         elem.clear()
+        if parent is not None:
+            parent.remove(elem)
 
     def _events(self, file_path: str) -> Iterator[Tuple[str, str, Any]]:
         name = Path(file_path).name
@@ -119,12 +153,14 @@ class NessusXMLTranslator(ScannerTranslator):
         if clean.get("operating-system"):
             attrs["operatingSystem"] = clean["operating-system"]
         fallback = (report_host_name or "").strip()
-        if fallback and "ip" not in attrs and "hostname" not in attrs:
+        if fallback and "ip" not in attrs:
             try:
                 ipaddress.ip_address(fallback)
+                # A valid IP in the ReportHost name is kept even when an FQDN gave the hostname,
+                # so the asset key is the IP, as for reports of the same host with a host-ip tag.
                 attrs["ip"] = fallback
             except ValueError:
-                attrs["hostname"] = fallback
+                attrs.setdefault("hostname", fallback)
         return attrs
 
     def _option(self, name: str) -> bool:
@@ -206,24 +242,29 @@ class NessusXMLTranslator(ScannerTranslator):
             for name in names
         ]
 
-    def _add_findings(self, asset: AssetData, index: Dict[Tuple[str, str], Dict[str, Any]],
+    def _add_findings(self, asset: AssetData,
+                      index: Dict[Tuple[str, str], Tuple[int, Dict[str, Any]]],
                       findings: List[Dict[str, Any]]) -> None:
-        """Add findings to an asset, unique by (name, location), keeping the higher severity."""
+        """Add findings to an asset, unique by (name, location), keeping the higher severity.
+
+        The index maps each (name, location) to its position in ``asset.findings`` and the kept
+        finding, so a merge never searches the list.
+        """
         for finding in findings:
             ident = (finding["name"], finding["location"])
-            kept = index.get(ident)
-            if kept is None:
-                index[ident] = finding
+            entry = index.get(ident)
+            if entry is None:
+                index[ident] = (len(asset.findings), finding)
                 asset.findings.append(finding)
                 continue
+            position, kept = entry
             self._counts["duplicates_merged"] += 1
             kept_ids = kept["details"].get("plugin_ids") or [kept["details"].get("plugin_id")]
             new_id = finding["details"].get("plugin_id")
             if float(finding["severity"]) > float(kept["severity"]):
                 winner, ids = finding, [new_id] + kept_ids
-                position = asset.findings.index(kept)
                 asset.findings[position] = finding
-                index[ident] = finding
+                index[ident] = (position, finding)
             else:
                 winner, ids = kept, kept_ids + [new_id]
             unique = []
@@ -249,34 +290,39 @@ class NessusXMLTranslator(ScannerTranslator):
         stats = self._counts
         without_findings = 0
         assets: Dict[str, AssetData] = {}
-        indexes: Dict[str, Dict[Tuple[str, str], Dict[str, Any]]] = {}
+        indexes: Dict[str, Dict[Tuple[str, str], Tuple[int, Dict[str, Any]]]] = {}
         props: Dict[str, str] = {}
         findings: List[Dict[str, Any]] = []
         in_host = False
         root_tag = ""
         conflicts = 0
+        # Open elements, so each finished element is detached from its own parent.
+        open_elems: List[Any] = []
         try:
             for event, tag, elem in self._events(file_path):
                 if event == "start":
+                    open_elems.append(elem)
                     if tag == "ReportHost":
                         in_host = True
                     continue
+                open_elems.pop()
+                parent = open_elems[-1] if open_elems else None
                 root_tag = tag
                 if tag == "attachment":
                     # The parser still reads the text of one attachment into memory once.
-                    self._release(elem)
+                    self._release(elem, parent)
                 elif tag == "HostProperties":
                     for child in elem.iter("tag"):
                         if child.get("name") and child.get("name") not in props:
                             props[child.get("name")] = child.text or ""
-                    self._release(elem)
+                    self._release(elem, parent)
                 elif tag == "ReportItem":
                     stats["items"] += 1
                     if in_host:
                         findings.extend(self._item_findings(elem))
                     else:
                         self._invalid(elem, "item outside ReportHost")
-                    self._release(elem)
+                    self._release(elem, parent)
                 elif tag == "ReportHost":
                     in_host = False
                     stats["hosts"] += 1
@@ -302,7 +348,9 @@ class NessusXMLTranslator(ScannerTranslator):
                                 asset.attributes.setdefault(k, v)
                         self._add_findings(asset, indexes[key], findings)
                     props, findings = {}, []
-                    self._release(elem)
+                    self._release(elem, parent)
+                elif tag == "Report":
+                    self._release(elem, parent)
         except (DefusedXmlException, ET.ParseError) as exc:
             raise NessusParseError(f"Nessus XML parse failed for {name}: {exc}") from exc
         if root_tag != ROOT_TAG:
@@ -311,9 +359,10 @@ class NessusXMLTranslator(ScannerTranslator):
             )
         result: List[AssetData] = []
         for asset in assets.values():
-            if not asset.findings:
+            if not asset.findings and not self.create_inventory_assets:
                 without_findings += 1
                 continue
+            # Inventory mode: a host with no finding gets the base translator's placeholder.
             result.append(self.ensure_asset_has_findings(asset))
         stats["assets"] = len(result)
         stats["findings"] = sum(len(a.findings) for a in result)

@@ -108,6 +108,78 @@ class TestNessusManager(TempFiles, unittest.TestCase):
         self.assertEqual((result["success"], result["assets_imported"], result.get("empty_scan")), (True, 0, True))
         self.importer_mock.assert_not_called()
 
+    def test_scanner_tenable_on_truncated_nessus_fails_without_post(self):
+        for text in ('<?xml version="1.0" ?><Nessu', '<?xml version="1.0" ?><Other/>', ""):
+            for scanner in ("tenable", "nessus", None):
+                path = self.write(".NESSUS", text)
+                result = self.manager.process_scanner_file_enhanced(path, scanner_type=scanner)
+                self.assertFalse(result["success"], (text, scanner))
+        self.importer_mock.assert_not_called()
+
+    def test_empty_scan_result_carries_zero_tag_counts(self):
+        result = self.manager.process_scanner_file_enhanced(str(DATA / "nessus_many_vuln.xml"), just_tags=True)
+        self.assertTrue(result["success"])
+        self.assertEqual((result["assets_tagged"], result["tags_applied"]), (0, 0))
+
+    def test_single_file_cli_just_tags_on_informational_only_scan(self):
+        import phoenix_multi_scanner_enhanced as cli
+        argv = ["prog", "--config", "audit.ini", "--file", str(DATA / "nessus_many_vuln.xml"), "--just-tags"]
+        with patch.object(sys, "argv", argv), \
+                patch.object(cli, "EnhancedMultiScannerImportManager", return_value=self.manager):
+            self.assertEqual(cli.main(), 0)
+        self.importer_mock.assert_not_called()
+
+    def test_inventory_mode_is_applied_per_call_and_restored(self):
+        path = self.write(".nessus", nessus(one_host(items=item(severity=0))))
+        nessus_translator = self.manager._find_translator_by_name("nessus")
+        result = self.manager.process_scanner_file_enhanced(path, create_inventory_assets=True)
+        self.assertTrue(result["success"])
+        self.assertNotIn("empty_scan", result)
+        assets = self.importer_mock.call_args.args[0]
+        self.assertTrue(assets[0].findings[0]["details"].get("asset_inventory"))
+        self.assertFalse(nessus_translator.create_inventory_assets)
+        self.importer_mock.reset_mock()
+        result = self.manager.process_scanner_file_enhanced(path)
+        self.assertEqual((result["success"], result.get("empty_scan")), (True, True))
+        self.importer_mock.assert_not_called()
+        self.assertFalse(nessus_translator.create_inventory_assets)
+
+    def test_inventory_mode_restored_after_parse_error(self):
+        nessus_translator = self.manager._find_translator_by_name("nessus")
+        result = self.manager.process_scanner_file_enhanced(
+            self.write(".nessus", "<ASSET_DATA_REPORT/>"), scanner_type="nessus", create_inventory_assets=True)
+        self.assertFalse(result["success"])
+        self.assertFalse(nessus_translator.create_inventory_assets)
+        self.importer_mock.assert_not_called()
+
+    def test_trufflehog_key_names_in_nessus_xml_do_not_block_import(self):
+        text = nessus(one_host(items=item(plugin_output='"DetectorName" "Raw" "RawV2"')))
+        text = text.replace("<NessusClientData_v2>",
+                            '<!-- "DetectorName": "x", "Raw": "y" --><NessusClientData_v2>', 1)
+        with patch("scanner_translators.trufflehog_translator.holds_trufflehog_secrets") as check:
+            result = self.manager.process_scanner_file_enhanced(self.write(".nessus", text))
+        self.assertTrue(result["success"], result.get("error"))
+        self.assertEqual(result["scanner_type"], "nessusxml")  # auto-detected
+        check.assert_not_called()  # no whole-file read for a Nessus import
+        self.importer_mock.assert_called_once()
+
+    def test_trufflehog_records_in_a_nessus_file_are_never_uploaded(self):
+        record = ('{"SourceMetadata": {}, "DetectorName": "AWS", "Raw": "AKIAEXAMPLEVALUE", '
+                  '"RawV2": "", "Redacted": ""}\n')
+        for scanner in ("nessus", "tenable", None):
+            result = self.manager.process_scanner_file_enhanced(self.write(".nessus", record), scanner_type=scanner)
+            self.assertFalse(result["success"], scanner)
+            self.assertNotIn("AKIAEXAMPLEVALUE", result.get("error", ""))
+        self.importer_mock.assert_not_called()
+
+    def test_trufflehog_check_still_runs_for_other_translators(self):
+        record = ('{"SourceMetadata": {}, "DetectorName": "AWS", "Raw": "AKIAEXAMPLEVALUE", '
+                  '"RawV2": "", "Redacted": ""}\n')
+        result = self.manager.process_scanner_file_enhanced(self.write(".json", record), scanner_type="grype")
+        self.assertFalse(result["success"])
+        self.assertIn("TruffleHog records", result["error"])
+        self.importer_mock.assert_not_called()
+
     def test_folder_mode_lists_nessus_files(self):
         folder = Path(self.tmp_dir())
         (folder / "a.nessus").write_text(nessus(one_host(items=item())))

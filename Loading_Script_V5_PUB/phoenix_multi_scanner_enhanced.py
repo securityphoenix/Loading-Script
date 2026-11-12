@@ -678,7 +678,11 @@ class EnhancedMultiScannerImportManager:
                 translator = self._find_translator_by_name(detected_scanner)
                 if translator is not None and type(translator).__name__ == 'TenableTranslator':
                     nessus_translator = self._find_translator_by_name('nessus')
-                    if nessus_translator is not None and nessus_translator.can_handle(file_path):
+                    # Any .nessus file goes to the strict Nessus parser, so a broken one fails
+                    # without an upload instead of falling back to the Tenable CSV translator.
+                    if nessus_translator is not None and (
+                            Path(file_path).suffix.lower() == '.nessus'
+                            or nessus_translator.can_handle(file_path)):
                         logger.info("--scanner tenable given for a Nessus XML file: using NessusXMLTranslator")
                         translator = nessus_translator
                         detected_scanner = 'nessus'
@@ -727,14 +731,26 @@ class EnhancedMultiScannerImportManager:
             from scanner_translators.trufflehog_translator import (
                 TruffleHogEmptyScan, TruffleHogTranslator, holds_trufflehog_secrets,
             )
-            from scanner_translators.nessus_xml_translator import NessusEmptyScan, NessusParseError
-            if not isinstance(translator, TruffleHogTranslator) and holds_trufflehog_secrets(processed_file_path):
+            from scanner_translators.nessus_xml_translator import (
+                NessusEmptyScan, NessusParseError, NessusXMLTranslator,
+            )
+            is_nessus = isinstance(translator, NessusXMLTranslator)
+            # The Nessus translator streams the file and accepts only well-formed NessusClientData_v2
+            # XML: TruffleHog JSON fails that parse with no upload, and TruffleHog key names inside XML
+            # text or comments are not TruffleHog records. So the whole-file read is skipped for it.
+            if (not isinstance(translator, TruffleHogTranslator) and not is_nessus
+                    and holds_trufflehog_secrets(processed_file_path)):
                 return {
                     'success': False,
                     'error': ('File holds TruffleHog records but was not read by the TruffleHog translator: '
                               'use scanner type trufflehog, or check the file format'),
                     'file_path': file_path,
                 }
+            if is_nessus:
+                # The translator is shared across calls: apply this call's inventory mode and put the
+                # previous mode back afterwards, so a later call without the option is not affected.
+                previous_inventory_mode = translator.create_inventory_assets
+                translator.create_inventory_assets = bool(create_inventory_assets)
             try:
                 assets = self._parse_file_to_assets(processed_file_path, translator, asset_type, asset_name)
             except TruffleHogEmptyScan:
@@ -758,6 +774,8 @@ class EnhancedMultiScannerImportManager:
                                         or self._generate_assessment_name(file_path, detected_scanner)),
                     'assets_imported': 0,
                     'vulnerabilities_imported': 0,
+                    'assets_tagged': 0,
+                    'tags_applied': 0,
                     'empty_scan': True,
                 }
             except NessusParseError as e:
@@ -768,6 +786,9 @@ class EnhancedMultiScannerImportManager:
                     'file_path': file_path,
                     'scanner_type': detected_scanner,
                 }
+            finally:
+                if is_nessus:
+                    translator.create_inventory_assets = previous_inventory_mode
             
             # OPTION 3: Lenient parsing with fallback asset creation
             if not assets:
