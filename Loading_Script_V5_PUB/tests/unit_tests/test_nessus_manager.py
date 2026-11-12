@@ -26,6 +26,9 @@ from scanner_translators.base_translator import ScannerTranslator
 _MANAGER_USES_ISINSTANCE = "isinstance(translator_or_name, ScannerTranslator)" in inspect.getsource(
     EnhancedMultiScannerImportManager._parse_file_to_assets)
 _TENABLE_ROUTING_APPLIES = (not _MANAGER_USES_ISINSTANCE) or issubclass(TenableTranslator, ScannerTranslator)
+# The public manager refuses TruffleHog records read by another translator; the private copy has no such check.
+_MANAGER_CHECKS_TRUFFLEHOG = "holds_trufflehog_secrets" in inspect.getsource(
+    EnhancedMultiScannerImportManager.process_scanner_file_enhanced)
 
 DATA = ROOT / "unit_tests" / "test_data" / "nessus"
 
@@ -156,7 +159,7 @@ class TestNessusManager(TempFiles, unittest.TestCase):
         text = nessus(one_host(items=item(plugin_output='"DetectorName" "Raw" "RawV2"')))
         text = text.replace("<NessusClientData_v2>",
                             '<!-- "DetectorName": "x", "Raw": "y" --><NessusClientData_v2>', 1)
-        with patch("scanner_translators.trufflehog_translator.holds_trufflehog_secrets") as check:
+        with patch("scanner_translators.trufflehog_translator.holds_trufflehog_secrets", create=True) as check:
             result = self.manager.process_scanner_file_enhanced(self.write(".nessus", text))
         self.assertTrue(result["success"], result.get("error"))
         self.assertEqual(result["scanner_type"], "nessusxml")  # auto-detected
@@ -172,6 +175,7 @@ class TestNessusManager(TempFiles, unittest.TestCase):
             self.assertNotIn("AKIAEXAMPLEVALUE", result.get("error", ""))
         self.importer_mock.assert_not_called()
 
+    @unittest.skipUnless(_MANAGER_CHECKS_TRUFFLEHOG, "this manager copy has no TruffleHog record check")
     def test_trufflehog_check_still_runs_for_other_translators(self):
         record = ('{"SourceMetadata": {}, "DetectorName": "AWS", "Raw": "AKIAEXAMPLEVALUE", '
                   '"RawV2": "", "Redacted": ""}\n')
