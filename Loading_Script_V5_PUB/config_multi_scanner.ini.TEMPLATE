@@ -110,6 +110,11 @@ severity_mapping_none = 1.0
 # Filter out informational findings
 vulnerability_filters = none,info,informational
 
+# [scanner_nessus]
+# Nessus XML (.nessus) options. true, yes or 1 turns an option on; anything else is off.
+# include_informational = false
+# include_plugin_output = false
+
 [scanner_generic]
 # Generic Scanner Configuration (fallback)
 scanner_type = Generic Scan

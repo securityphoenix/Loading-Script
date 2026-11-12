@@ -289,6 +289,7 @@ class EnhancedMultiScannerImportManager:
             from scanner_translators import (
                 QualysTranslator,             # Consolidated 4→1 🆕
                 TenableTranslator,            # Consolidated 2→1 🆕
+                NessusXMLTranslator,          # Tenable Nessus XML (.nessus)
                 KubeauditTranslator,          # 🆕
                 MSDefenderTranslator,         # 🆕
                 DSOPTranslator,               # 🆕 (duplicate in Build for flexibility)
@@ -327,6 +328,7 @@ class EnhancedMultiScannerImportManager:
             self.scanner_configs['aws_prowler_v4'] = ScannerConfig('AWS Prowler v4/v5', 'CLOUD')
             self.scanner_configs['aws_prowler_v5'] = self.scanner_configs['aws_prowler_v4']  # V5 uses V4 translator
             self.scanner_configs['tenable'] = ScannerConfig('Tenable Nessus', 'INFRA')
+            self.scanner_configs['nessus'] = ScannerConfig('Tenable Nessus XML', 'INFRA')
             self.scanner_configs['dependency_check'] = ScannerConfig('OWASP Dependency Check', 'BUILD')
             self.scanner_configs['sonarqube'] = ScannerConfig('SonarQube', 'CODE')
             self.scanner_configs['cyclonedx'] = ScannerConfig('CycloneDX SBOM', 'BUILD')
@@ -449,6 +451,7 @@ class EnhancedMultiScannerImportManager:
                 
                 # INFRASTRUCTURE SCANNERS (6)
                 WazuhTranslator(self.scanner_configs.get('wazuh', {}), tag_config),                  # Wazuh Indexer 4.8+ + legacy Manager API 🆕
+                NessusXMLTranslator(self.scanner_configs.get('nessus', {}), tag_config),             # Nessus XML (.nessus)
                 QualysTranslator(self.scanner_configs.get('qualys', {}), tag_config),                # 4→1 🆕
                 TenableTranslator(self.scanner_configs.get('tenable', {}), tag_config),              # 2→1 🆕
                 KubeauditTranslator(self.scanner_configs.get('kubeaudit', {}), tag_config),          # 🆕
@@ -489,6 +492,8 @@ class EnhancedMultiScannerImportManager:
         
         # Map of scanner names to translator class name patterns
         name_mappings = {
+            'nessus': 'NessusXMLTranslator',
+            'nessus_xml': 'NessusXMLTranslator',
             'phoenix_csv': 'PhoenixCSVTranslator',
             'phoenix_csv_infra': 'PhoenixCSVTranslator',
             'phoenix_csv_cloud': 'PhoenixCSVTranslator',
@@ -671,6 +676,16 @@ class EnhancedMultiScannerImportManager:
                 logger.info(f"✅ Using specified scanner type: {detected_scanner}")
                 # Find translator for this scanner type
                 translator = self._find_translator_by_name(detected_scanner)
+                if translator is not None and type(translator).__name__ == 'TenableTranslator':
+                    nessus_translator = self._find_translator_by_name('nessus')
+                    # Any .nessus file goes to the strict Nessus parser, so a broken one fails
+                    # without an upload instead of falling back to the Tenable CSV translator.
+                    if nessus_translator is not None and (
+                            Path(file_path).suffix.lower() == '.nessus'
+                            or nessus_translator.can_handle(file_path)):
+                        logger.info("--scanner tenable given for a Nessus XML file: using NessusXMLTranslator")
+                        translator = nessus_translator
+                        detected_scanner = 'nessus'
                 if not translator:
                     logger.warning(f"⚠️ No hard-coded translator found for '{detected_scanner}', using YAML fallback")
                     translator = self.detect_scanner_type(file_path)
@@ -716,13 +731,26 @@ class EnhancedMultiScannerImportManager:
             from scanner_translators.trufflehog_translator import (
                 TruffleHogEmptyScan, TruffleHogTranslator, holds_trufflehog_secrets,
             )
-            if not isinstance(translator, TruffleHogTranslator) and holds_trufflehog_secrets(processed_file_path):
+            from scanner_translators.nessus_xml_translator import (
+                NessusEmptyScan, NessusParseError, NessusXMLTranslator,
+            )
+            is_nessus = isinstance(translator, NessusXMLTranslator)
+            # The Nessus translator streams the file and accepts only well-formed NessusClientData_v2
+            # XML: TruffleHog JSON fails that parse with no upload, and TruffleHog key names inside XML
+            # text or comments are not TruffleHog records. So the whole-file read is skipped for it.
+            if (not isinstance(translator, TruffleHogTranslator) and not is_nessus
+                    and holds_trufflehog_secrets(processed_file_path)):
                 return {
                     'success': False,
                     'error': ('File holds TruffleHog records but was not read by the TruffleHog translator: '
                               'use scanner type trufflehog, or check the file format'),
                     'file_path': file_path,
                 }
+            if is_nessus:
+                # The translator is shared across calls: apply this call's inventory mode and put the
+                # previous mode back afterwards, so a later call without the option is not affected.
+                previous_inventory_mode = translator.create_inventory_assets
+                translator.create_inventory_assets = bool(create_inventory_assets)
             try:
                 assets = self._parse_file_to_assets(processed_file_path, translator, asset_type, asset_name)
             except TruffleHogEmptyScan:
@@ -736,6 +764,31 @@ class EnhancedMultiScannerImportManager:
                     'vulnerabilities_imported': 0,
                     'empty_scan': True,
                 }
+            except NessusEmptyScan:
+                logger.info("Nessus scan holds no vulnerability findings")
+                return {
+                    'success': True,
+                    'file_path': file_path,
+                    'scanner_type': detected_scanner,
+                    'assessment_name': (assessment_name
+                                        or self._generate_assessment_name(file_path, detected_scanner)),
+                    'assets_imported': 0,
+                    'vulnerabilities_imported': 0,
+                    'assets_tagged': 0,
+                    'tags_applied': 0,
+                    'empty_scan': True,
+                }
+            except NessusParseError as e:
+                logger.error("Nessus XML parse failed for %s: %s", file_path, e)
+                return {
+                    'success': False,
+                    'error': str(e),
+                    'file_path': file_path,
+                    'scanner_type': detected_scanner,
+                }
+            finally:
+                if is_nessus:
+                    translator.create_inventory_assets = previous_inventory_mode
             
             # OPTION 3: Lenient parsing with fallback asset creation
             if not assets:
@@ -1017,6 +1070,7 @@ class EnhancedMultiScannerImportManager:
             logger.info(f"🏷️ Set translator asset_type before parse: {asset_type}")
         
         from scanner_translators.trufflehog_translator import TruffleHogEmptyScan, TruffleHogJenkinsError
+        from scanner_translators.nessus_xml_translator import NessusEmptyScan, NessusParseError
         try:
             if translator_class_name == 'TrivyTranslator':
                 assets = translator.parse_file(file_path, asset_type_override=asset_type)
@@ -1029,7 +1083,7 @@ class EnhancedMultiScannerImportManager:
                     assets = translator.parse_file(file_path)
             else:
                 assets = translator.parse_file(file_path)
-        except (TruffleHogEmptyScan, TruffleHogJenkinsError):
+        except (TruffleHogEmptyScan, TruffleHogJenkinsError, NessusEmptyScan, NessusParseError):
             # Not in Utils: keep TruffleHog's empty-scan success and its value-free error text
             raise
         except Exception as e:
@@ -1138,7 +1192,7 @@ class EnhancedMultiScannerImportManager:
         """Enhanced folder processing with validation and batching"""
         
         if file_types is None:
-            file_types = ['json', 'csv', 'xml']
+            file_types = ['json', 'csv', 'xml', 'nessus']
         
         folder_path_obj = Path(folder_path)
         if not folder_path_obj.exists():
@@ -1147,6 +1201,11 @@ class EnhancedMultiScannerImportManager:
         # Find all matching files
         files_to_process = []
         for file_type in file_types:
+            if file_type == 'nessus':
+                files_to_process.extend(
+                    f for f in folder_path_obj.iterdir()
+                    if f.is_file() and f.suffix.lower() == '.nessus')
+                continue
             pattern = f"*.{file_type}"
             files_to_process.extend(folder_path_obj.glob(pattern))
         
@@ -1293,8 +1352,8 @@ Examples:
     parser.add_argument('--verify-import', action='store_true', help='Verify import after completion')
     
     # Processing options
-    parser.add_argument('--file-types', nargs='+', choices=['json', 'csv', 'xml'], 
-                       default=['json', 'csv', 'xml'], help='File types to process in folder mode')
+    parser.add_argument('--file-types', nargs='+', choices=['json', 'csv', 'xml', 'nessus'], 
+                       default=['json', 'csv', 'xml', 'nessus'], help='File types to process in folder mode')
     
     # Logging options
     parser.add_argument('--log-level', choices=['DEBUG', 'INFO', 'WARNING', 'ERROR'], 
