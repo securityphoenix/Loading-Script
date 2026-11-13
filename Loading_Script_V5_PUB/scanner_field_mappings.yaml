@@ -662,8 +662,8 @@ scanners:
         format_type: "json"
         asset_type: "REPOSITORY"
         detection:
-          required_keys: ["object_key", "scanned_at", "scanner", "results"]
-          json_keys: ["check_id", "semgrep"]
+          required_keys: ["scanned_at", "scanner", "repository"]
+          json_keys: ["object_key", "results", "check_id", "semgrep"]
         strip_url_credentials: ["repository"]
         field_mappings:
           asset:
