@@ -40,7 +40,7 @@ class TestSemgrepRepositoryWrapper(unittest.TestCase):
         self.path = str(Path(temp.name) / 'wrapper.json')
         Path(self.path).write_text(json.dumps(WRAPPER), encoding='utf-8')
         cwd = os.getcwd()
-        os.chdir(ROOT)  # FieldMapper reads scanner_field_mappings.yaml from the working directory
+        os.chdir(temp.name)
         self.addCleanup(os.chdir, cwd)
         self.translator = ConfigurableScannerTranslator(ScannerConfig('universal', 'INFRA'), TagConfig())
 
@@ -50,6 +50,14 @@ class TestSemgrepRepositoryWrapper(unittest.TestCase):
     def test_wrapper_is_detected_as_semgrep_repository_json(self):
         self.assertEqual(self.translator.universal_translator.get_scanner_info(self.path)['format'],
                          'semgrep_repository_json')
+
+    def test_empty_wrapper_with_null_object_key_remains_a_repository_scan(self):
+        Path(self.path).write_text(json.dumps(dict(WRAPPER, object_key=None, results=[])))
+        info = self.translator.universal_translator.get_scanner_info(self.path)
+        self.assertEqual(info['format'], 'semgrep_repository_json')
+        asset = self.translator.parse_file(self.path)[0]
+        self.assertEqual(asset.asset_type, 'REPOSITORY')
+        self.assertEqual(asset.findings, [])
 
     def test_repository_asset_with_credentials_stripped(self):
         asset = self.translator.parse_file(self.path)[0]

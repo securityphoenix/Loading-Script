@@ -31,8 +31,8 @@ logger = logging.getLogger(__name__)
 class FieldMapper:
     """Handles field mapping between scanner formats and Phoenix Security format with hot-reload support"""
     
-    def __init__(self, config_file: str = "scanner_field_mappings.yaml"):
-        self.config_file = config_file
+    def __init__(self, config_file: Optional[str] = None):
+        self.config_file = config_file or str(Path(__file__).resolve().parent / "scanner_field_mappings.yaml")
         self.config = self._load_config()
         self.phoenix_fields = self.config.get('phoenix_fields', {})
         self.scanners = self.config.get('scanners', {})
