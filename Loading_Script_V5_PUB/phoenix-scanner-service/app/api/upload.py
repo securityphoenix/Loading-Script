@@ -70,7 +70,13 @@ async def upload_scan_file(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail=f"File type not allowed. Supported: {', '.join(settings.ALLOWED_EXTENSIONS)}"
         )
-    
+    # The Nessus XML import does not anonymize data: refuse before anything is queued.
+    if file_ext == "nessus" and anonymize:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="anonymize is not supported for Nessus XML (.nessus) files: upload without anonymize"
+        )
+
     try:
         # Build request object
         upload_request = ScanUploadRequest(

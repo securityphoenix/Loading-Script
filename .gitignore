@@ -38,3 +38,6 @@ credentials.json
 
 # Publish tooling scratch
 *.tmp
+
+# Local Nessus exports (never commit customer scans)
+artefacts/*.nessus

@@ -51,7 +51,7 @@ class Settings(BaseSettings):
     MAX_UPLOAD_SIZE_MB: int = Field(default=500, env="MAX_UPLOAD_SIZE_MB")
     UPLOAD_DIR: str = Field(default="./uploads", env="UPLOAD_DIR")
     LOG_DIR: str = Field(default="./logs", env="LOG_DIR")
-    ALLOWED_EXTENSIONS: list = [".json", ".csv", ".xml", ".zip", ".gz"]
+    ALLOWED_EXTENSIONS: list = [".json", ".csv", ".xml", ".zip", ".gz", ".nessus"]
     
     # Worker Settings
     MAX_CONCURRENT_JOBS: int = Field(default=5, env="MAX_CONCURRENT_JOBS")

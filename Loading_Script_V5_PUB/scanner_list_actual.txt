@@ -116,6 +116,7 @@ mobsfscan
 mozilla_observatory
 ms_defender
 nancy
+nessus
 netsparker
 neuvector
 neuvector_compliance

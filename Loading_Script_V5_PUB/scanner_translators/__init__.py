@@ -23,6 +23,7 @@ from .kubeaudit_translator import KubeauditTranslator
 from .microfocus_webinspect_translator import MicroFocusWebInspectTranslator
 from .msdefender_translator import MSDefenderTranslator
 from .npm_audit_translator import NpmAuditTranslator
+from .nessus_xml_translator import NessusEmptyScan, NessusParseError, NessusXMLTranslator
 from .noseyparker_translator import NoseyParkerTranslator
 from .nsp_translator import NSPTranslator
 from .ort_translator import ORTTranslator
@@ -71,6 +72,9 @@ __all__ = [
     "KubeauditTranslator",
     "MicroFocusWebInspectTranslator",
     "MSDefenderTranslator",
+    "NessusEmptyScan",
+    "NessusParseError",
+    "NessusXMLTranslator",
     "NpmAuditTranslator",
     "NoseyParkerTranslator",
     "NSPTranslator",

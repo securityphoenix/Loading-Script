@@ -52,3 +52,6 @@ colorama>=0.4.6
 python-dateutil>=2.8.2
 urllib3>=2.6.0  # SECURITY: Fix CVE-2025-66418, CVE-2025-66471 (decompression chain attacks)
 pyasn1>=0.6.2  # SECURITY: Fix CVE-2026-23490 (DoS in decoder)
+
+# Safe XML parsing for Nessus (.nessus) imports
+defusedxml>=0.7.1
