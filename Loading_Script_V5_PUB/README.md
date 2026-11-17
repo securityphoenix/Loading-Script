@@ -224,7 +224,9 @@ include_plugin_output = false
 
 A file with no findings above informational ends as a success with 0 imports and nothing is
 uploaded; with `--create-inventory-assets` each host is imported with an inventory placeholder.
-A broken or non-Nessus file fails the import. Auto-detect reads UTF-8 files whose root element
+Findings on a host with no IP, FQDN or hostname are dropped and logged; when that leaves nothing
+to import, the import fails with the number of lost findings. `--anonymize` is refused for Nessus
+XML files. A broken or non-Nessus file fails the import. Auto-detect reads UTF-8 files whose root element
 starts within the first 4 KB; for a UTF-16 export use `--scanner nessus`.
 
 | Flag | What it does |

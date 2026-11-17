@@ -184,6 +184,53 @@ class TestNessusManager(TempFiles, unittest.TestCase):
         self.assertIn("TruffleHog records", result["error"])
         self.importer_mock.assert_not_called()
 
+    def test_cli_anonymize_on_nessus_fails_without_post_or_mode_change(self):
+        import phoenix_multi_scanner_enhanced as cli
+        nessus_translator = self.manager._find_translator_by_name("nessus")
+        writes = []
+        # A class property shadows the instance attribute, so every write of the mode is recorded.
+        mode = property(lambda self_: False, lambda self_, value: writes.append(value))
+        argv = ["prog", "--config", "audit.ini", "--file", str(DATA / "nessus_with_cvssv3.xml"),
+                "--anonymize", "--create-inventory-assets"]
+        with patch.object(sys, "argv", argv), patch("builtins.input", return_value=""), \
+                patch.object(cli, "EnhancedMultiScannerImportManager", return_value=self.manager), \
+                patch.object(self.manager, "_parse_file_to_assets") as parse, \
+                patch.object(type(nessus_translator), "create_inventory_assets", mode, create=True):
+            self.assertEqual(cli.main(), 1)
+        self.assertEqual(writes, [])
+        parse.assert_not_called()
+        self.importer_mock.assert_not_called()
+
+    def test_anonymize_refused_on_every_nessus_route(self):
+        nessus_translator = self.manager._find_translator_by_name("nessus")
+        path = str(DATA / "nessus_with_cvssv3.xml")
+        for scanner in ("nessus", "nessus_xml", "tenable", None):
+            result = self.manager.process_scanner_file_enhanced(
+                path, scanner_type=scanner, anonymize=True, create_inventory_assets=True)
+            self.assertFalse(result["success"], scanner)
+            self.assertIn("anonymize is not supported", result["error"])
+            self.assertEqual(result["file_path"], path)
+            self.assertFalse(nessus_translator.create_inventory_assets)
+        folder = Path(self.tmp_dir())
+        (folder / "a.nessus").write_text(nessus(one_host(items=item())))
+        self.manager.process_folder_enhanced(str(folder), anonymize=True)
+        self.importer_mock.assert_not_called()
+
+    def test_findings_on_unkeyed_hosts_are_not_a_success(self):
+        text = nessus(one_host(name="", props="", items=item(plugin_id=1) + item(plugin_id=2)))
+        result = self.manager.process_scanner_file_enhanced(self.write(".nessus", text))
+        self.assertFalse(result["success"])
+        self.assertIn("2 finding(s) on hosts with no IP, FQDN or hostname", result["error"])
+        self.assertNotIn("empty_scan", result)
+        self.importer_mock.assert_not_called()
+
+    def test_informational_only_on_unkeyed_host_is_still_an_empty_success(self):
+        text = nessus(one_host(name="", props="", items=item(severity=0)))
+        result = self.manager.process_scanner_file_enhanced(self.write(".nessus", text))
+        self.assertEqual((result["success"], result["assets_imported"], result.get("empty_scan")), (True, 0, True))
+        self.assertEqual((result["assets_tagged"], result["tags_applied"]), (0, 0))
+        self.importer_mock.assert_not_called()
+
     def test_folder_mode_lists_nessus_files(self):
         folder = Path(self.tmp_dir())
         (folder / "a.nessus").write_text(nessus(one_host(items=item())))

@@ -32,8 +32,11 @@ See `CLAUDE.md` in this folder and `../UTILS_PUBLISH_TO_PUBLIC.md`.
 
 ### Notes
 
-- `--anonymize` is not applied by this translator or on the enhanced import path (see README). The
-  scanner service refuses a `.nessus` upload with `anonymize=true` (HTTP 400).
+- `--anonymize` is not applied by this translator or on the enhanced import path (see README). A
+  Nessus XML import with `--anonymize` fails before anything is uploaded, and the scanner service
+  refuses a `.nessus` upload with `anonymize=true` (HTTP 400).
+- Findings on hosts with no IP, FQDN or hostname cannot be imported. When no other host is
+  imported, the import fails and names the number of lost findings.
 - Auto-detect reads UTF-8 `.nessus` files whose root element starts within the first 4 KB. UTF-16
   exports, or files with more than 4 KB of comments before the root, need `--scanner nessus`.
 - The date is the planned merge date; update it if the merge happens on another day.

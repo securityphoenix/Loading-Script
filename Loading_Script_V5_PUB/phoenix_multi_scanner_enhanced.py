@@ -735,6 +735,18 @@ class EnhancedMultiScannerImportManager:
                 NessusEmptyScan, NessusParseError, NessusXMLTranslator,
             )
             is_nessus = isinstance(translator, NessusXMLTranslator)
+            if is_nessus and anonymize:
+                # The Nessus XML import does not anonymize data, so it must not upload real host
+                # names and IPs when anonymization was asked for. Refused before any parse or upload.
+                error = ("anonymize is not supported for Nessus XML (.nessus) files: "
+                         "import without anonymize")
+                logger.error("%s (%s)", error, file_path)
+                return {
+                    'success': False,
+                    'error': error,
+                    'file_path': file_path,
+                    'scanner_type': detected_scanner,
+                }
             # The Nessus translator streams the file and accepts only well-formed NessusClientData_v2
             # XML: TruffleHog JSON fails that parse with no upload, and TruffleHog key names inside XML
             # text or comments are not TruffleHog records. So the whole-file read is skipped for it.
@@ -764,7 +776,20 @@ class EnhancedMultiScannerImportManager:
                     'vulnerabilities_imported': 0,
                     'empty_scan': True,
                 }
-            except NessusEmptyScan:
+            except NessusEmptyScan as empty:
+                dropped = empty.stats.get('findings_dropped_no_asset_key', 0)
+                if dropped:
+                    # Findings were there but no host could be keyed: that is lost data, not an
+                    # empty scan, so it is not reported as a success.
+                    error = (f"Nessus scan holds {dropped} finding(s) on hosts with no IP, FQDN or "
+                             "hostname: nothing was imported")
+                    logger.error("%s (%s)", error, file_path)
+                    return {
+                        'success': False,
+                        'error': error,
+                        'file_path': file_path,
+                        'scanner_type': detected_scanner,
+                    }
                 logger.info("Nessus scan holds no vulnerability findings")
                 return {
                     'success': True,

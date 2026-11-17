@@ -151,6 +151,19 @@ class TestNessusAssets(TempFiles, unittest.TestCase):
             self._one(nessus(one_host(name="", props="", items=item())))
         self.assertEqual(ctx.exception.stats["invalid_hosts"], 1)
 
+    def test_findings_on_unkeyed_host_are_counted_as_dropped(self):
+        t = _translator()
+        text = nessus(one_host(name="", props="", items=item(plugin_id=1) + item(plugin_id=2, cves=("CVE-1", "CVE-2"))))
+        with self.assertRaises(NessusEmptyScan) as ctx:
+            t.parse_file(self.write(".nessus", text))
+        self.assertEqual(ctx.exception.stats["findings_dropped_no_asset_key"], 3)
+        self.assertEqual(t.last_stats["findings_dropped_no_asset_key"], 3)
+
+    def test_informational_on_unkeyed_host_is_not_counted_as_dropped(self):
+        with self.assertRaises(NessusEmptyScan) as ctx:
+            self._one(nessus(one_host(name="", props="", items=item(severity=0))))
+        self.assertEqual(ctx.exception.stats["findings_dropped_no_asset_key"], 0)
+
     def test_informational_only_host_is_dropped(self):
         with self.assertRaises(NessusEmptyScan) as ctx:
             self._one(nessus(one_host(items=item(severity=0))))
@@ -279,7 +292,7 @@ class TestNessusFindings(TempFiles, unittest.TestCase):
         self.assertEqual(len(t._item_findings(element)), 1)
         self.assertEqual(set(t.last_stats), {
             "hosts", "items", "informational_skipped", "invalid_items", "invalid_hosts",
-            "duplicates_merged", "findings", "assets"})
+            "duplicates_merged", "findings", "assets", "findings_dropped_no_asset_key"})
 
     def test_impossible_date_is_none(self):
         _, f = self._parse(item(vuln_publication_date="2024/13/45"))
@@ -364,7 +377,7 @@ class TestNessusStructureAndHardening(TempFiles, unittest.TestCase):
         self.assertTrue(any("merged hosts with conflicting attributes=1" in line for line in logs.output))
         self.assertEqual(set(t.last_stats), {
             "hosts", "items", "informational_skipped", "invalid_items", "invalid_hosts",
-            "duplicates_merged", "findings", "assets"})
+            "duplicates_merged", "findings", "assets", "findings_dropped_no_asset_key"})
 
     def test_no_conflict_line_when_attributes_agree(self):
         text = nessus(one_host(items=item(plugin_id=1)), one_host(items=item(plugin_id=2)))
@@ -504,6 +517,49 @@ class TestNessusReviewFixes(TempFiles, unittest.TestCase):
         self.assertTrue(all(f["severity"] == "10.0" for f in findings))
         self.assertEqual(findings[5]["details"]["plugin_ids"], [str(count + 5), "5"])
         self.assertLess(elapsed, 20)
+
+    def test_one_finding_hit_by_many_plugin_ids_merges_fast_in_order(self):
+        count = 20000
+        # One finding (CVE-1 on tcp/443) reported by many plugins; every id appears twice.
+        low = "".join(item(severity=1, plugin_id=i, cves=("CVE-1",)) for i in range(1, count + 1))
+        high = item(severity=4, plugin_id=count + 1, cves=("CVE-1",))
+        path = self.write(".nessus", nessus(one_host(items=low + low + high)))
+        t = _translator()
+        started = time.perf_counter()
+        findings = t.parse_file(path)[0].findings
+        elapsed = time.perf_counter() - started
+        self.assertEqual(len(findings), 1)
+        self.assertEqual(t.last_stats["duplicates_merged"], 2 * count)
+        self.assertEqual(findings[0]["severity"], "10.0")
+        self.assertEqual(findings[0]["details"]["plugin_ids"],
+                         [str(count + 1)] + [str(i) for i in range(1, count + 1)])
+        self.assertLess(elapsed, 20)
+
+    def test_merge_never_rebuilds_or_rescans_the_plugin_id_list(self):
+        from phoenix_import_refactored import AssetData
+
+        class NoScan(list):
+            def __contains__(self, value):
+                raise AssertionError("plugin id list was scanned")
+
+            def __iter__(self):
+                raise AssertionError("plugin id list was iterated")
+
+        def dup(pid, severity="3.0"):
+            return {"name": "CVE-1", "location": "tcp/1", "severity": severity, "details": {"plugin_id": pid}}
+
+        t = _translator()
+        asset = AssetData(asset_type="INFRA", attributes={"ip": "10.0.0.5"}, tags=[])
+        index = {}
+        t._add_findings(asset, index, [dup("1"), dup("2")])
+        entry = index[("CVE-1", "tcp/1")]
+        entry[2] = NoScan(list(entry[2]))
+        t._add_findings(asset, index, [dup("3"), dup("2"), dup("4", "10.0"), dup("3")])
+        kept = asset.findings[0]
+        self.assertEqual(kept["severity"], "10.0")
+        self.assertIs(kept["details"]["plugin_ids"], entry[2])
+        self.assertEqual([list.__getitem__(entry[2], i) for i in range(list.__len__(entry[2]))],
+                         ["4", "1", "2", "3"])
 
     def test_merge_never_searches_the_findings_list(self):
         from phoenix_import_refactored import AssetData

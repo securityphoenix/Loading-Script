@@ -30,6 +30,8 @@ SEVERITY_MAP = {4: "10.0", 3: "8.0", 2: "5.0", 1: "3.0"}
 _STAT_KEYS = (
     "hosts", "items", "informational_skipped", "invalid_items", "invalid_hosts",
     "duplicates_merged", "findings", "assets",
+    # Findings lost because their host had no IP, FQDN or hostname to key the asset on.
+    "findings_dropped_no_asset_key",
 )
 SCANNER_TAG = {"key": "scanner", "value": "tenable-nessus"}
 _FIRST_ELEMENT = re.compile(rb"\s*<([A-Za-z_][\w.\-]*)")
@@ -242,36 +244,44 @@ class NessusXMLTranslator(ScannerTranslator):
             for name in names
         ]
 
-    def _add_findings(self, asset: AssetData,
-                      index: Dict[Tuple[str, str], Tuple[int, Dict[str, Any]]],
+    def _add_findings(self, asset: AssetData, index: Dict[Tuple[str, str], List[Any]],
                       findings: List[Dict[str, Any]]) -> None:
         """Add findings to an asset, unique by (name, location), keeping the higher severity.
 
-        The index maps each (name, location) to its position in ``asset.findings`` and the kept
-        finding, so a merge never searches the list.
+        The index maps each (name, location) to ``[position, kept finding, plugin ids, id set]``:
+        the position in ``asset.findings``, so a merge never searches the list, and the merged
+        plugin ids as an ordered list plus a set, so a duplicate id is found without a scan and
+        the list is never rebuilt. The ids are created on the first merge only.
         """
         for finding in findings:
             ident = (finding["name"], finding["location"])
             entry = index.get(ident)
             if entry is None:
-                index[ident] = (len(asset.findings), finding)
+                index[ident] = [len(asset.findings), finding, None, None]
                 asset.findings.append(finding)
                 continue
-            position, kept = entry
+            position, kept, ids, seen = entry
             self._counts["duplicates_merged"] += 1
-            kept_ids = kept["details"].get("plugin_ids") or [kept["details"].get("plugin_id")]
+            if ids is None:
+                first = kept["details"].get("plugin_id")
+                ids, seen = ([first], {first}) if first else ([], set())
+                entry[2], entry[3] = ids, seen
             new_id = finding["details"].get("plugin_id")
             if float(finding["severity"]) > float(kept["severity"]):
-                winner, ids = finding, [new_id] + kept_ids
+                # The higher severity finding's id goes first. Severity only rises a few times
+                # (five levels), so the insert at the front stays rare.
+                if new_id and new_id not in seen:
+                    ids.insert(0, new_id)
+                    seen.add(new_id)
+                winner = finding
                 asset.findings[position] = finding
-                index[ident] = (position, finding)
+                entry[1] = finding
             else:
-                winner, ids = kept, kept_ids + [new_id]
-            unique = []
-            for pid in ids:
-                if pid and pid not in unique:
-                    unique.append(pid)
-            winner["details"]["plugin_ids"] = unique
+                if new_id and new_id not in seen:
+                    ids.append(new_id)
+                    seen.add(new_id)
+                winner = kept
+            winner["details"]["plugin_ids"] = ids
 
     @staticmethod
     def _asset_key(attrs: Dict[str, str]) -> str:
@@ -290,7 +300,7 @@ class NessusXMLTranslator(ScannerTranslator):
         stats = self._counts
         without_findings = 0
         assets: Dict[str, AssetData] = {}
-        indexes: Dict[str, Dict[Tuple[str, str], Tuple[int, Dict[str, Any]]]] = {}
+        indexes: Dict[str, Dict[Tuple[str, str], List[Any]]] = {}
         props: Dict[str, str] = {}
         findings: List[Dict[str, Any]] = []
         in_host = False
@@ -330,6 +340,7 @@ class NessusXMLTranslator(ScannerTranslator):
                     key = self._asset_key(attrs)
                     if not key:
                         stats["invalid_hosts"] += 1
+                        stats["findings_dropped_no_asset_key"] += len(findings)
                     else:
                         asset = assets.get(key)
                         if asset is None:
@@ -375,6 +386,11 @@ class NessusXMLTranslator(ScannerTranslator):
         )
         if conflicts:
             logger.info("Nessus XML %s: merged hosts with conflicting attributes=%d", name, conflicts)
+        if stats["findings_dropped_no_asset_key"]:
+            logger.warning(
+                "Nessus XML %s: findings dropped because their host has no IP, FQDN or hostname=%d",
+                name, stats["findings_dropped_no_asset_key"],
+            )
         if not result:
             raise NessusEmptyScan(
                 f"Nessus file {name} holds no importable finding",
