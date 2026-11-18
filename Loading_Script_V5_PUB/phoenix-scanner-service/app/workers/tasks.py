@@ -144,7 +144,15 @@ def process_scan_file(self, job_id: str) -> Dict[str, Any]:
             raise ValueError(f"Job {job_id} not found")
 
         upload_file_path = job.file_path
-        
+
+        # task_reject_on_worker_lost requeues a job whose worker was killed (e.g. out of memory).
+        # Retrying a job that just killed its worker would loop forever. A redelivered job still in
+        # PROCESSING was started by an earlier attempt that never finished, so fail it instead.
+        if (self.request.delivery_info or {}).get('redelivered') and job.status == JobStatus.PROCESSING.value:
+            raise RuntimeError(
+                "The worker was killed while processing this job (likely out of memory); not retrying"
+            )
+
         # Update job status to processing
         job_manager.update_job_status(
             self.db,

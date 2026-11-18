@@ -82,5 +82,45 @@ class TestSemgrepRepositoryWrapper(unittest.TestCase):
         self.assertEqual(self.tags()['new_authors'], '38593')
 
 
+class TestSemgrepDetectionAndPerResultFallback(unittest.TestCase):
+    """Wrapper text containing 'paths'/'errors' must not select plain semgrep_json (which copies every result per finding)."""
+
+    def setUp(self):
+        temp = tempfile.TemporaryDirectory()
+        self.addCleanup(temp.cleanup)
+        self.dir = Path(temp.name)
+        cwd = os.getcwd()
+        os.chdir(ROOT)
+        self.addCleanup(os.chdir, cwd)
+        self.translator = ConfigurableScannerTranslator(ScannerConfig('universal', 'INFRA'), TagConfig())
+
+    def write(self, data):
+        path = str(self.dir / 'f.json')
+        Path(path).write_text(json.dumps(data), encoding='utf-8')
+        return path
+
+    def result(self, i, path, message):
+        return {'check_id': f'rule.{i}', 'path': path, 'start': {'line': 10, 'col': 1}, 'end': {'line': 10, 'col': 2},
+                'extra': {'message': message, 'severity': 'WARNING', 'metadata': {'cwe': ['CWE-20: x']}}}
+
+    def test_wrapper_mentioning_paths_and_errors_is_still_semgrep_repository_json(self):
+        wrapper = dict(WRAPPER, results=[self.result(1, 'src/paths/a.js', 'Handle errors before use'),
+                                         self.result(2, 'src/b.js', 'other')])
+        path = self.write(wrapper)
+        self.assertEqual(self.translator.universal_translator.get_scanner_info(path)['format'], 'semgrep_repository_json')
+        finding = self.translator.parse_file(path)[0].findings[0]
+        self.assertEqual(finding['location'], 'src/paths/a.js:10')
+        self.assertEqual(finding['remedy'], 'No remedy provided')
+        self.assertFalse(finding.get('reference_ids'))
+
+    def test_missing_per_result_field_does_not_pull_in_all_results(self):
+        path = self.write({'results': [self.result(1, 'a.js', 'm'), self.result(2, 'b.js', 'm')],
+                           'errors': [], 'paths': {'scanned': ['a.js', 'b.js']}})
+        finding = self.translator.parse_file(path)[0].findings[0]
+        self.assertEqual(finding['remedy'], 'No remedy provided')
+        self.assertFalse(finding.get('reference_ids'))
+        self.assertEqual(finding['location'], 'a.js:10')  # path:line, not only the line
+
+
 if __name__ == '__main__':
     unittest.main()
