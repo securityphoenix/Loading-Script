@@ -357,6 +357,12 @@ class FieldMapper:
         last_part = parts[-1].lstrip('.')
         return last_part if last_part else path
     
+    @staticmethod
+    def _is_per_item_path(path: str) -> bool:
+        """True for 'results[].extra.fix': a field of each array item. Looked up on the whole file,
+        get_nested_value returns the entire array, so such paths must not fall back to global data."""
+        return '[]' in path and not path.endswith('[]')
+
     def map_vulnerability(self, vuln_data: Dict[str, Any], field_mappings: Dict[str, Any], 
                          severity_mapping: Dict[str, str], global_data: Dict[str, Any] = None) -> Dict[str, Any]:
         """Map scanner vulnerability data to Phoenix vulnerability format"""
@@ -382,7 +388,7 @@ class FieldMapper:
                 
                 # Dynamic value - check both vuln_data and global_data
                 value = self.get_nested_value(vuln_data, relative_path)
-                if value is None and global_data:
+                if value is None and global_data and not self._is_per_item_path(scanner_path):
                     value = self.get_nested_value(global_data, scanner_path)
                 
                 if value is not None:
@@ -417,7 +423,7 @@ class FieldMapper:
                     # Strip array notations for relative path
                     relative_path = self._strip_array_notation(scanner_path)
                     value = self.get_nested_value(vuln_data, relative_path)
-                    if value is None and global_data:
+                    if value is None and global_data and not self._is_per_item_path(scanner_path):
                         value = self.get_nested_value(global_data, scanner_path)
                     
                     if value is not None:
@@ -621,6 +627,11 @@ class ScannerFormatDetector:
                 with open(file_path, 'r') as f:
                     file_content = json.load(f)
             
+            # A top-level key listed here rules the format out (e.g. a wrapper around a plain format)
+            if isinstance(file_content, dict) and any(
+                    k in file_content for k in detection_config.get('excluded_keys', [])):
+                return 0.0
+
             score = 0.0
             total_checks = 0
             

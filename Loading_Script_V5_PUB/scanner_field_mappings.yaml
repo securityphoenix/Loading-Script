@@ -631,6 +631,7 @@ scanners:
         detection:
           json_keys: ["results", "paths", "errors"]
           required_keys: ["results"]
+          excluded_keys: ["object_key", "scanned_at"]  # wrapper files belong to semgrep_repository_json
         field_mappings:
           asset:
             scannerSource: "semgrep-scan"
@@ -640,7 +641,7 @@ scanners:
             description: "results[].extra.message"
             remedy: "results[].extra.fix"
             severity: "results[].extra.severity"
-            location: "results[].path:results[].start.line"
+            location: ["results[].path", "results[].start.line"]
             reference_ids: "results[].extra.references"
             details:
               check_id: "results[].check_id"
