@@ -111,15 +111,16 @@ class TestSemgrepDetectionAndPerResultFallback(unittest.TestCase):
         finding = self.translator.parse_file(path)[0].findings[0]
         self.assertEqual(finding['location'], 'src/paths/a.js:10')
         self.assertEqual(finding['remedy'], 'No remedy provided')
-        self.assertFalse(finding.get('reference_ids'))
+        self.assertNotIn('referenceIds', finding)
 
     def test_missing_per_result_field_does_not_pull_in_all_results(self):
-        path = self.write({'results': [self.result(1, 'a.js', 'm'), self.result(2, 'b.js', 'm')],
-                           'errors': [], 'paths': {'scanned': ['a.js', 'b.js']}})
-        finding = self.translator.parse_file(path)[0].findings[0]
-        self.assertEqual(finding['remedy'], 'No remedy provided')
-        self.assertFalse(finding.get('reference_ids'))
-        self.assertEqual(finding['location'], 'a.js:10')  # path:line, not only the line
+        same_rule = [dict(self.result(1, 'a.js', 'm')), dict(self.result(1, 'b.js', 'm'))]
+        path = self.write({'results': same_rule, 'errors': [], 'paths': {'scanned': ['a.js', 'b.js']}})
+        findings = self.translator.parse_file(path)[0].findings
+        self.assertEqual([f['location'] for f in findings], ['a.js:10', 'b.js:10'])  # path:line, not only the line
+        for finding in findings:
+            self.assertEqual(finding['remedy'], 'No remedy provided')
+            self.assertNotIn('referenceIds', finding)
 
 
 if __name__ == '__main__':

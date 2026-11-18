@@ -33,12 +33,12 @@ def run_job(tmp_path, monkeypatch):
     (tmp_path / "logs").mkdir()
     monkeypatch.setattr(tasks, "_create_temp_config", lambda job, logger: None)
 
-    def run(status, redelivered):
+    def run(status, redelivered, progress=0.0):
         scan = tmp_path / "scan.json"
         scan.write_text("{}")
         db = session_factory()
         db.add(Job(job_id="job-1", status=status.value, created_at=datetime.utcnow(), filename=scan.name,
-                   file_path=str(scan), file_size_bytes=2, import_type="new", progress=0.0))
+                   file_path=str(scan), file_size_bytes=2, import_type="new", progress=progress))
         db.commit()
         db.close()
 
@@ -68,15 +68,23 @@ def run_job(tmp_path, monkeypatch):
     return run
 
 
-def test_redelivered_processing_job_is_failed_without_running(run_job):
-    job, importer, scan = run_job(JobStatus.PROCESSING, redelivered=True)
+def test_redelivered_job_that_was_in_the_importer_is_failed_without_running(run_job):
+    job, importer, scan = run_job(JobStatus.PROCESSING, redelivered=True, progress=30.0)
     assert job.status == JobStatus.FAILED.value
     assert "not retrying" in job.error_message
     importer.assert_not_called()
     assert not scan.exists()
 
 
-def test_redelivered_job_that_never_started_runs_normally(run_job):
-    job, importer, _ = run_job(JobStatus.PENDING, redelivered=True)
+@pytest.mark.parametrize("status", [JobStatus.COMPLETED, JobStatus.FAILED])
+def test_redelivered_finished_job_is_not_imported_again(run_job, status):
+    job, importer, _ = run_job(status, redelivered=True)
+    assert job.status == status.value
+    importer.assert_not_called()
+
+
+@pytest.mark.parametrize("status, progress", [(JobStatus.PENDING, 0.0), (JobStatus.PROCESSING, 10.0)])
+def test_redelivered_job_that_never_reached_the_importer_runs_normally(run_job, status, progress):
+    job, importer, _ = run_job(status, redelivered=True, progress=progress)
     assert job.status == JobStatus.COMPLETED.value
     importer.assert_called_once()

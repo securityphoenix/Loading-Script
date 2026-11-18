@@ -146,9 +146,17 @@ def process_scan_file(self, job_id: str) -> Dict[str, Any]:
         upload_file_path = job.file_path
 
         # task_reject_on_worker_lost requeues a job whose worker was killed (e.g. out of memory).
-        # Retrying a job that just killed its worker would loop forever. A redelivered job still in
-        # PROCESSING was started by an earlier attempt that never finished, so fail it instead.
-        if (self.request.delivery_info or {}).get('redelivered') and job.status == JobStatus.PROCESSING.value:
+        # A redelivery of a job that already finished (e.g. the worker died before acking) must not
+        # import it again.
+        redelivered = (self.request.delivery_info or {}).get('redelivered')
+        if redelivered and job.status in (JobStatus.COMPLETED.value, JobStatus.FAILED.value):
+            task_logger.warning(f"Job {job_id} was redelivered but already {job.status}; skipping")
+            return {'skipped': True}
+
+        # Retrying a job that just killed its worker would loop forever. Progress reaches 30 just before
+        # the importer starts, so a redelivered PROCESSING job at 30 or more was in the importer when
+        # its worker died: fail it. Below 30 the importer never started (e.g. a deploy), so it re-runs.
+        if redelivered and job.status == JobStatus.PROCESSING.value and (job.progress or 0) >= 30.0:
             raise RuntimeError(
                 "The worker was killed while processing this job (likely out of memory); not retrying"
             )
